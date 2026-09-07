@@ -79,23 +79,18 @@ public class MainActivity extends AppCompatActivity {
         confirmation = findViewById(R.id.confirmation);
         updated = findViewById(R.id.updated);
 
-        refreshButton =
-                findViewById(R.id.refreshButton);
-
-        copyButton =
-                findViewById(R.id.copyButton);
+        refreshButton = findViewById(R.id.refreshButton);
+        copyButton = findViewById(R.id.copyButton);
 
         title.setText("ForexPilot AI");
 
         setupButtons();
-
         updateMarketStatus();
 
         String apiKey =
                 BuildConfig.TWELVE_DATA_API_KEY;
 
-        if (apiKey == null ||
-                apiKey.trim().isEmpty()) {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
 
             scanner.setText(
                     "API KEY REQUIRED\n\n" +
@@ -104,7 +99,6 @@ public class MainActivity extends AppCompatActivity {
             );
 
             bestSignal.setText("WAIT");
-
             bestSignal.setTextColor(
                     Color.rgb(255, 213, 79)
             );
@@ -165,23 +159,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupButtons() {
 
-        Button tf5 =
-                findViewById(R.id.tf5);
-
-        Button tf15 =
-                findViewById(R.id.tf15);
-
-        Button tf30 =
-                findViewById(R.id.tf30);
-
-        Button tf1h =
-                findViewById(R.id.tf1h);
-
-        Button tf4h =
-                findViewById(R.id.tf4h);
-
-        Button tf1d =
-                findViewById(R.id.tf1d);
+        Button tf5 = findViewById(R.id.tf5);
+        Button tf15 = findViewById(R.id.tf15);
+        Button tf30 = findViewById(R.id.tf30);
+        Button tf1h = findViewById(R.id.tf1h);
+        Button tf4h = findViewById(R.id.tf4h);
+        Button tf1d = findViewById(R.id.tf1d);
 
         Button marketGold =
                 findViewById(R.id.marketGold);
@@ -282,7 +265,7 @@ public class MainActivity extends AppCompatActivity {
         updated.setText(
                 "Timeframe selected: "
                         + display
-                        + " • Refreshing..."
+                        + " - Refreshing..."
         );
 
         String apiKey =
@@ -303,7 +286,7 @@ public class MainActivity extends AppCompatActivity {
 
         updated.setText(
                 symbol
-                        + " selected • "
+                        + " selected - "
                         + timeframeName()
         );
     }
@@ -349,20 +332,14 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-            prices.put(
-                    symbol,
-                    0.0
-            );
+            prices.put(symbol, 0.0);
 
             TwelveDataClient client =
                     new TwelveDataClient(
                             new PairCallback(symbol)
                     );
 
-            clients.put(
-                    symbol,
-                    client
-            );
+            clients.put(symbol, client);
 
             client.candles(
                     symbol,
@@ -386,4 +363,300 @@ public class MainActivity extends AppCompatActivity {
             updated.setText(
                     "Refreshing "
                             + timeframeName()
-                            + "
+                            + " signals..."
+            );
+
+        });
+
+        for (String symbol : SYMBOLS) {
+
+            TwelveDataClient client =
+                    clients.get(symbol);
+
+            if (client != null) {
+
+                client.candles(
+                        symbol,
+                        selectedTimeframe,
+                        apiKey
+                );
+            }
+        }
+    }
+
+    private void updateMarketStatus() {
+
+        boolean open =
+                MarketClock.isForexOpen(
+                        Instant.now()
+                );
+
+        market.setText(
+                open
+                        ? "FOREX MARKET: OPEN"
+                        : "FOREX MARKET: CLOSED"
+        );
+
+        session.setText(
+                "Sessions: "
+                        + MarketClock.session(
+                        Instant.now()
+                )
+        );
+    }
+
+    private void updateScanner() {
+
+        StringBuilder text =
+                new StringBuilder();
+
+        text.append(
+                timeframeName()
+                        + " MARKET SCANNER\n\n"
+        );
+
+        for (String symbol : SYMBOLS) {
+
+            if (!"ALL".equals(selectedMarket)
+                    && !selectedMarket.equals(symbol)) {
+
+                continue;
+            }
+
+            SignalResult result =
+                    results.get(symbol);
+
+            double currentPrice =
+                    prices.get(symbol);
+
+            text.append(symbol)
+                    .append("\n");
+
+            text.append("Signal: ")
+                    .append(result.action)
+                    .append("\n");
+
+            text.append("Confidence: ")
+                    .append(result.confidence)
+                    .append("%\n");
+
+            if (currentPrice > 0) {
+
+                text.append("Price: ")
+                        .append(
+                                formatPrice(
+                                        symbol,
+                                        currentPrice
+                                )
+                        )
+                        .append("\n");
+            }
+
+            if ("BUY".equals(result.action)
+                    || "SELL".equals(result.action)) {
+
+                text.append("Status: ")
+                        .append(statusText(result))
+                        .append("\n");
+
+                text.append("Signal time: ")
+                        .append(
+                                formatDateTime(
+                                        result.signalTimeMillis
+                                )
+                        )
+                        .append("\n");
+            }
+
+            if (!"WAIT".equals(result.action)
+                    && result.entry > 0) {
+
+                text.append("Entry: ")
+                        .append(
+                                formatPrice(
+                                        symbol,
+                                        result.entry
+                                )
+                        )
+                        .append("\n");
+
+                text.append("SL: ")
+                        .append(
+                                formatPrice(
+                                        symbol,
+                                        result.sl
+                                )
+                        )
+                        .append("\n");
+
+                text.append("TP1: ")
+                        .append(
+                                formatPrice(
+                                        symbol,
+                                        result.tp1
+                                )
+                        )
+                        .append("\n");
+
+                text.append("TP2: ")
+                        .append(
+                                formatPrice(
+                                        symbol,
+                                        result.tp2
+                                )
+                        )
+                        .append("\n");
+
+                text.append("TP3: ")
+                        .append(
+                                formatPrice(
+                                        symbol,
+                                        result.tp3
+                                )
+                        )
+                        .append("\n");
+            }
+
+            text.append("\n");
+        }
+
+        scanner.setText(text.toString());
+
+        findBestSignal();
+    }
+
+    private String statusText(
+            SignalResult result) {
+
+        if ("WIN".equals(result.status)) {
+
+            return "WIN - "
+                    + result.resultReason;
+        }
+
+        if ("LOSS".equals(result.status)) {
+
+            return "LOSS - "
+                    + result.resultReason;
+        }
+
+        if ("OPEN".equals(result.status)) {
+
+            return "OPEN - MONITORING";
+        }
+
+        if ("EXPIRED".equals(result.status)) {
+
+            return "EXPIRED - SIGNAL PASSED";
+        }
+
+        return "WAIT";
+    }
+
+    private void findBestSignal() {
+
+        bestSymbol = null;
+        bestResult = null;
+
+        for (String symbol : SYMBOLS) {
+
+            if (!"ALL".equals(selectedMarket)
+                    && !selectedMarket.equals(symbol)) {
+
+                continue;
+            }
+
+            SignalResult result =
+                    results.get(symbol);
+
+            if (result == null) {
+                continue;
+            }
+
+            if ("WAIT".equals(result.action)) {
+                continue;
+            }
+
+            if (bestResult == null
+                    || result.confidence
+                    > bestResult.confidence) {
+
+                bestSymbol = symbol;
+                bestResult = result;
+            }
+        }
+
+        if (bestResult == null) {
+
+            bestSignal.setText("WAIT");
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+            confirmation.setText(
+                    "WAITING FOR CONFIRMATION"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+            bestDetails.setText(
+                    "No strong BUY or SELL setup right now."
+            );
+
+            return;
+        }
+
+        String action =
+                bestResult.action;
+
+        bestSignal.setText(
+                bestSymbol
+                        + " • "
+                        + action
+                        + " • "
+                        + bestResult.confidence
+                        + "%"
+        );
+
+        if ("BUY".equals(action)) {
+
+            bestSignal.setTextColor(
+                    Color.rgb(76, 255, 120)
+            );
+
+        } else if ("SELL".equals(action)) {
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 80, 80)
+            );
+
+        } else {
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+        }
+
+        if ("WIN".equals(bestResult.status)) {
+
+            confirmation.setText(
+                    "WIN - "
+                            + bestResult.resultReason
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(76, 255, 120)
+            );
+
+        } else if ("LOSS".equals(bestResult.status)) {
+
+            confirmation.setText(
+                    "LOSS - "
+                            + bestResult.resultReason
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 80, 
