@@ -33,8 +33,11 @@ public class SignalStorage {
     }
 
     /*
-     * Save a currently active signal permanently.
+     * ========================================================
+     * SAVE ACTIVE SIGNAL
+     * ========================================================
      */
+
     public void saveActiveSignal(
             String symbol,
             SignalResult result) {
@@ -106,6 +109,16 @@ public class SignalStorage {
                     result.resultReason
             );
 
+            /*
+             * New field:
+             * remembers the highest TP reached.
+             */
+
+            object.put(
+                    "highestTargetReached",
+                    result.highestTargetReached
+            );
+
             preferences.edit()
                     .putString(
                             ACTIVE_PREFIX + symbol,
@@ -118,8 +131,11 @@ public class SignalStorage {
     }
 
     /*
-     * Restore all active signals after app restart.
+     * ========================================================
+     * LOAD ACTIVE SIGNALS
+     * ========================================================
      */
+
     public Map<String, SignalResult>
     getActiveSignals() {
 
@@ -135,7 +151,10 @@ public class SignalStorage {
             String key =
                     entry.getKey();
 
-            if (!key.startsWith(ACTIVE_PREFIX)) {
+            if (!key.startsWith(
+                    ACTIVE_PREFIX
+            )) {
+
                 continue;
             }
 
@@ -143,6 +162,7 @@ public class SignalStorage {
                     entry.getValue();
 
             if (!(value instanceof String)) {
+
                 continue;
             }
 
@@ -219,9 +239,24 @@ public class SignalStorage {
                                 ""
                         );
 
+                /*
+                 * Read the saved TP progress.
+                 *
+                 * Old signals that do not have this
+                 * field automatically get 0.
+                 */
+
+                int highestTargetReached =
+                        object.optInt(
+                                "highestTargetReached",
+                                0
+                        );
+
                 if (!symbol.isEmpty()
-                        && ("BUY".equals(action)
-                        || "SELL".equals(action))) {
+                        && (
+                        "BUY".equals(action)
+                                || "SELL".equals(action)
+                )) {
 
                     SignalResult result =
                             new SignalResult(
@@ -234,7 +269,8 @@ public class SignalStorage {
                                     confidence,
                                     signalTimeMillis,
                                     status,
-                                    resultReason
+                                    resultReason,
+                                    highestTargetReached
                             );
 
                     if (result.isOpen()) {
@@ -254,8 +290,11 @@ public class SignalStorage {
     }
 
     /*
-     * Remove an active signal once it is completed.
+     * ========================================================
+     * REMOVE ACTIVE SIGNAL
+     * ========================================================
      */
+
     public void removeActiveSignal(
             String symbol) {
 
@@ -273,13 +312,17 @@ public class SignalStorage {
     }
 
     /*
-     * Save completed signal history.
+     * ========================================================
+     * SAVE COMPLETED SIGNAL
+     * ========================================================
      */
+
     public void saveSignal(
             String symbol,
             SignalResult result) {
 
         if (result == null) {
+
             return;
         }
 
@@ -290,14 +333,18 @@ public class SignalStorage {
                 );
 
         String record =
-                encode(symbol, result);
+                encode(
+                        symbol,
+                        result
+                );
 
         String newHistory;
 
         if (oldHistory == null
                 || oldHistory.trim().isEmpty()) {
 
-            newHistory = record;
+            newHistory =
+                    record;
 
         } else {
 
@@ -314,6 +361,12 @@ public class SignalStorage {
                 )
                 .apply();
     }
+
+    /*
+     * ========================================================
+     * GET HISTORY
+     * ========================================================
+     */
 
     public List<String> getHistory() {
 
@@ -335,7 +388,8 @@ public class SignalStorage {
         String[] records =
                 saved.split("\\n");
 
-        for (String record : records) {
+        for (String record :
+                records) {
 
             if (!record.trim().isEmpty()) {
 
@@ -346,12 +400,24 @@ public class SignalStorage {
         return list;
     }
 
+    /*
+     * ========================================================
+     * CLEAR HISTORY
+     * ========================================================
+     */
+
     public void clearHistory() {
 
         preferences.edit()
                 .remove(HISTORY)
                 .apply();
     }
+
+    /*
+     * ========================================================
+     * ENCODE HISTORY RECORD
+     * ========================================================
+     */
 
     private String encode(
             String symbol,
@@ -376,6 +442,8 @@ public class SignalStorage {
                 + result.tp3
                 + " | Confidence="
                 + result.confidence
+                + " | Highest TP="
+                + result.highestTargetReached
                 + " | Result="
                 + result.resultReason;
     }
