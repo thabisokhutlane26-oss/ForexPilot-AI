@@ -13,7 +13,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -77,8 +79,11 @@ public class MainActivity extends AppCompatActivity {
         confirmation = findViewById(R.id.confirmation);
         updated = findViewById(R.id.updated);
 
-        refreshButton = findViewById(R.id.refreshButton);
-        copyButton = findViewById(R.id.copyButton);
+        refreshButton =
+                findViewById(R.id.refreshButton);
+
+        copyButton =
+                findViewById(R.id.copyButton);
 
         title.setText("ForexPilot AI");
 
@@ -89,7 +94,8 @@ public class MainActivity extends AppCompatActivity {
         String apiKey =
                 BuildConfig.TWELVE_DATA_API_KEY;
 
-        if (apiKey == null || apiKey.trim().isEmpty()) {
+        if (apiKey == null ||
+                apiKey.trim().isEmpty()) {
 
             scanner.setText(
                     "API KEY REQUIRED\n\n" +
@@ -98,11 +104,15 @@ public class MainActivity extends AppCompatActivity {
             );
 
             bestSignal.setText("WAIT");
-            bestSignal.setTextColor(Color.rgb(255, 213, 79));
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
 
             confirmation.setText(
                     "WAITING FOR MARKET DATA"
             );
+
             confirmation.setTextColor(
                     Color.rgb(255, 213, 79)
             );
@@ -155,12 +165,23 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupButtons() {
 
-        Button tf5 = findViewById(R.id.tf5);
-        Button tf15 = findViewById(R.id.tf15);
-        Button tf30 = findViewById(R.id.tf30);
-        Button tf1h = findViewById(R.id.tf1h);
-        Button tf4h = findViewById(R.id.tf4h);
-        Button tf1d = findViewById(R.id.tf1d);
+        Button tf5 =
+                findViewById(R.id.tf5);
+
+        Button tf15 =
+                findViewById(R.id.tf15);
+
+        Button tf30 =
+                findViewById(R.id.tf30);
+
+        Button tf1h =
+                findViewById(R.id.tf1h);
+
+        Button tf4h =
+                findViewById(R.id.tf4h);
+
+        Button tf1d =
+                findViewById(R.id.tf1d);
 
         Button marketGold =
                 findViewById(R.id.marketGold);
@@ -365,512 +386,4 @@ public class MainActivity extends AppCompatActivity {
             updated.setText(
                     "Refreshing "
                             + timeframeName()
-                            + " signals..."
-            );
-
-        });
-
-        for (String symbol : SYMBOLS) {
-
-            TwelveDataClient client =
-                    clients.get(symbol);
-
-            if (client != null) {
-
-                client.candles(
-                        symbol,
-                        selectedTimeframe,
-                        apiKey
-                );
-            }
-        }
-    }
-
-    private void updateMarketStatus() {
-
-        boolean open =
-                MarketClock.isForexOpen(
-                        Instant.now()
-                );
-
-        market.setText(
-                open
-                        ? "FOREX MARKET: OPEN"
-                        : "FOREX MARKET: CLOSED"
-        );
-
-        session.setText(
-                "Sessions: "
-                        + MarketClock.session(
-                        Instant.now()
-                )
-        );
-    }
-
-    private void updateScanner() {
-
-        StringBuilder text =
-                new StringBuilder();
-
-        text.append(
-                timeframeName()
-                        + " MARKET SCANNER\n\n"
-        );
-
-        for (String symbol : SYMBOLS) {
-
-            if (!"ALL".equals(selectedMarket)
-                    && !selectedMarket.equals(symbol)) {
-
-                continue;
-            }
-
-            SignalResult result =
-                    results.get(symbol);
-
-            double currentPrice =
-                    prices.get(symbol);
-
-            text.append(symbol)
-                    .append("\n");
-
-            text.append("Signal: ")
-                    .append(result.action)
-                    .append("\n");
-
-            text.append("Confidence: ")
-                    .append(result.confidence)
-                    .append("%\n");
-
-            if (currentPrice > 0) {
-
-                text.append("Price: ")
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        currentPrice
-                                )
-                        )
-                        .append("\n");
-            }
-
-            if (!"WAIT".equals(result.action)
-                    && result.entry > 0) {
-
-                text.append("Entry: ")
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.entry
-                                )
-                        )
-                        .append("\n");
-
-                text.append("SL: ")
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.sl
-                                )
-                        )
-                        .append("\n");
-
-                text.append("TP1: ")
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.tp1
-                                )
-                        )
-                        .append("\n");
-
-                text.append("TP2: ")
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.tp2
-                                )
-                        )
-                        .append("\n");
-
-                text.append("TP3: ")
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.tp3
-                                )
-                        )
-                        .append("\n");
-            }
-
-            text.append("\n");
-        }
-
-        scanner.setText(
-                text.toString()
-        );
-
-        findBestSignal();
-    }
-
-    private void findBestSignal() {
-
-        bestSymbol = null;
-        bestResult = null;
-
-        for (String symbol : SYMBOLS) {
-
-            if (!"ALL".equals(selectedMarket)
-                    && !selectedMarket.equals(symbol)) {
-
-                continue;
-            }
-
-            SignalResult result =
-                    results.get(symbol);
-
-            if (result == null) {
-                continue;
-            }
-
-            if ("WAIT".equals(result.action)) {
-                continue;
-            }
-
-            if (bestResult == null
-                    || result.confidence
-                    > bestResult.confidence) {
-
-                bestSymbol = symbol;
-
-                bestResult = result;
-            }
-        }
-
-        if (bestResult == null) {
-
-            bestSignal.setText("WAIT");
-
-            bestSignal.setTextColor(
-                    Color.rgb(255, 213, 79)
-            );
-
-            confirmation.setText(
-                    "WAITING FOR CONFIRMATION"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(255, 213, 79)
-            );
-
-            bestDetails.setText(
-                    "No strong BUY or SELL setup "
-                            + "right now."
-            );
-
-            return;
-        }
-
-        String action =
-                bestResult.action;
-
-        bestSignal.setText(
-                bestSymbol
-                        + " • "
-                        + action
-                        + " • "
-                        + bestResult.confidence
-                        + "%"
-        );
-
-        if ("BUY".equals(action)) {
-
-            bestSignal.setTextColor(
-                    Color.rgb(76, 255, 120)
-            );
-
-            confirmation.setText(
-                    "BUY CONFIRMED"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(76, 255, 120)
-            );
-
-        } else if ("SELL".equals(action)) {
-
-            bestSignal.setTextColor(
-                    Color.rgb(255, 80, 80)
-            );
-
-            confirmation.setText(
-                    "SELL CONFIRMED"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(255, 80, 80)
-            );
-
-        } else {
-
-            bestSignal.setTextColor(
-                    Color.rgb(255, 213, 79)
-            );
-
-            confirmation.setText(
-                    "WAITING FOR CONFIRMATION"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(255, 213, 79)
-            );
-        }
-
-        bestDetails.setText(
-                String.format(
-                        Locale.US,
-
-                        "BEST SIGNAL\n\n"
-                                + "Market: %s\n"
-                                + "Timeframe: %s\n"
-                                + "Signal: %s\n"
-                                + "Confidence: %d%%\n\n"
-                                + "Entry: %s\n"
-                                + "Stop Loss: %s\n"
-                                + "TP1: %s\n"
-                                + "TP2: %s\n"
-                                + "TP3: %s",
-
-                        bestSymbol,
-
-                        timeframeName(),
-
-                        bestResult.action,
-
-                        bestResult.confidence,
-
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.entry
-                        ),
-
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.sl
-                        ),
-
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.tp1
-                        ),
-
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.tp2
-                        ),
-
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.tp3
-                        )
-                )
-        );
-    }
-
-    private void copyBestSignal() {
-
-        if (bestSymbol == null
-                || bestResult == null) {
-
-            Toast.makeText(
-                    this,
-                    "No BUY or SELL signal to copy.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
-
-        String text =
-                "ForexPilot AI Signal\n\n"
-                        + "Market: "
-                        + bestSymbol
-                        + "\n"
-                        + "Timeframe: "
-                        + timeframeName()
-                        + "\n"
-                        + "Signal: "
-                        + bestResult.action
-                        + "\n"
-                        + "Confidence: "
-                        + bestResult.confidence
-                        + "%\n\n"
-                        + "Entry: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.entry
-                )
-                        + "\n"
-                        + "Stop Loss: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.sl
-                )
-                        + "\n"
-                        + "TP1: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.tp1
-                )
-                        + "\n"
-                        + "TP2: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.tp2
-                )
-                        + "\n"
-                        + "TP3: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.tp3
-                );
-
-        ClipboardManager clipboard =
-                (ClipboardManager)
-                        getSystemService(
-                                Context.CLIPBOARD_SERVICE
-                        );
-
-        ClipData clip =
-                ClipData.newPlainText(
-                        "ForexPilot AI Signal",
-                        text
-                );
-
-        clipboard.setPrimaryClip(clip);
-
-        Toast.makeText(
-                this,
-                "Signal copied!",
-                Toast.LENGTH_SHORT
-        ).show();
-    }
-
-    private String formatPrice(
-            String symbol,
-            double value) {
-
-        if (value <= 0) {
-            return "--";
-        }
-
-        if ("USD/JPY".equals(symbol)) {
-
-            return String.format(
-                    Locale.US,
-                    "%.3f",
-                    value
-            );
-        }
-
-        if ("XAU/USD".equals(symbol)) {
-
-            return String.format(
-                    Locale.US,
-                    "%.2f",
-                    value
-            );
-        }
-
-        return String.format(
-                Locale.US,
-                "%.5f",
-                value
-        );
-    }
-
-    private class PairCallback
-            implements TwelveDataClient.Callback {
-
-        private final String symbol;
-
-        PairCallback(String symbol) {
-            this.symbol = symbol;
-        }
-
-        @Override
-        public void price(double price) {
-
-            runOnUiThread(() -> {
-
-                prices.put(
-                        symbol,
-                        price
-                );
-
-                updateScanner();
-
-                updated.setText(
-                        "Live prices updating • "
-                                + timeframeName()
-                );
-            });
-        }
-
-        @Override
-        public void candles(
-                List<Candle> candles) {
-
-            SignalResult result =
-                    SignalEngine.analyze(
-                            candles
-                    );
-
-            runOnUiThread(() -> {
-
-                results.put(
-                        symbol,
-                        result
-                );
-
-                updateScanner();
-
-                updated.setText(
-                        "Signals calculated • "
-                                + timeframeName()
-                );
-            });
-        }
-
-        @Override
-        public void error(String error) {
-
-            runOnUiThread(() -> {
-
-                updated.setText(
-                        symbol
-                                + ": "
-                                + error
-                );
-            });
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        super.onDestroy();
-
-        handler.removeCallbacksAndMessages(
-                null
-        );
-
-        for (TwelveDataClient client
-                : clients.values()) {
-
-            client.close();
-        }
-
-        clients.clear();
-    }
-}
+                            + "
