@@ -13,8 +13,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +33,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView confirmation;
     private TextView updated;
 
+    private TextView performanceSummary;
+    private TextView signalStatus;
+    private TextView signalTime;
+    private TextView signalResult;
+    private TextView history;
+
     private Button refreshButton;
     private Button copyButton;
 
@@ -46,6 +53,9 @@ public class MainActivity extends AppCompatActivity {
 
     private final Map<String, Double> prices =
             new LinkedHashMap<>();
+
+    private final List<String> signalHistory =
+            new ArrayList<>();
 
     private static final String[] SYMBOLS = {
             "XAU/USD",
@@ -64,6 +74,10 @@ public class MainActivity extends AppCompatActivity {
     private static final long REFRESH_INTERVAL =
             5 * 60 * 1000L;
 
+    private int wins = 0;
+    private int losses = 0;
+    private int expired = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -79,18 +93,40 @@ public class MainActivity extends AppCompatActivity {
         confirmation = findViewById(R.id.confirmation);
         updated = findViewById(R.id.updated);
 
-        refreshButton = findViewById(R.id.refreshButton);
-        copyButton = findViewById(R.id.copyButton);
+        performanceSummary =
+                findViewById(R.id.performanceSummary);
+
+        signalStatus =
+                findViewById(R.id.signalStatus);
+
+        signalTime =
+                findViewById(R.id.signalTime);
+
+        signalResult =
+                findViewById(R.id.signalResult);
+
+        history =
+                findViewById(R.id.history);
+
+        refreshButton =
+                findViewById(R.id.refreshButton);
+
+        copyButton =
+                findViewById(R.id.copyButton);
 
         title.setText("ForexPilot AI");
 
         setupButtons();
+
         updateMarketStatus();
+
+        updatePerformance();
 
         String apiKey =
                 BuildConfig.TWELVE_DATA_API_KEY;
 
-        if (apiKey == null || apiKey.trim().isEmpty()) {
+        if (apiKey == null ||
+                apiKey.trim().isEmpty()) {
 
             scanner.setText(
                     "API KEY REQUIRED\n\n" +
@@ -99,6 +135,7 @@ public class MainActivity extends AppCompatActivity {
             );
 
             bestSignal.setText("WAIT");
+
             bestSignal.setTextColor(
                     Color.rgb(255, 213, 79)
             );
@@ -265,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
         updated.setText(
                 "Timeframe selected: "
                         + display
-                        + " - Refreshing..."
+                        + " • Refreshing..."
         );
 
         String apiKey =
@@ -286,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
 
         updated.setText(
                 symbol
-                        + " selected - "
+                        + " selected • "
                         + timeframeName()
         );
     }
@@ -332,14 +369,20 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-            prices.put(symbol, 0.0);
+            prices.put(
+                    symbol,
+                    0.0
+            );
 
             TwelveDataClient client =
                     new TwelveDataClient(
                             new PairCallback(symbol)
                     );
 
-            clients.put(symbol, client);
+            clients.put(
+                    symbol,
+                    client
+            );
 
             client.candles(
                     symbol,
@@ -426,6 +469,10 @@ public class MainActivity extends AppCompatActivity {
             SignalResult result =
                     results.get(symbol);
 
+            if (result == null) {
+                continue;
+            }
+
             double currentPrice =
                     prices.get(symbol);
 
@@ -440,6 +487,10 @@ public class MainActivity extends AppCompatActivity {
                     .append(result.confidence)
                     .append("%\n");
 
+            text.append("Status: ")
+                    .append(result.status)
+                    .append("\n");
+
             if (currentPrice > 0) {
 
                 text.append("Price: ")
@@ -447,22 +498,6 @@ public class MainActivity extends AppCompatActivity {
                                 formatPrice(
                                         symbol,
                                         currentPrice
-                                )
-                        )
-                        .append("\n");
-            }
-
-            if ("BUY".equals(result.action)
-                    || "SELL".equals(result.action)) {
-
-                text.append("Status: ")
-                        .append(statusText(result))
-                        .append("\n");
-
-                text.append("Signal time: ")
-                        .append(
-                                formatDateTime(
-                                        result.signalTimeMillis
                                 )
                         )
                         .append("\n");
@@ -515,42 +550,33 @@ public class MainActivity extends AppCompatActivity {
                                 )
                         )
                         .append("\n");
+
+                text.append("Signal Time: ")
+                        .append(
+                                formatSignalTime(
+                                        result.signalTimeMillis
+                                )
+                        )
+                        .append("\n");
+            }
+
+            if (!result.resultReason.isEmpty()) {
+
+                text.append("Result: ")
+                        .append(result.resultReason)
+                        .append("\n");
             }
 
             text.append("\n");
         }
 
-        scanner.setText(text.toString());
+        scanner.setText(
+                text.toString()
+        );
 
         findBestSignal();
-    }
 
-    private String statusText(
-            SignalResult result) {
-
-        if ("WIN".equals(result.status)) {
-
-            return "WIN - "
-                    + result.resultReason;
-        }
-
-        if ("LOSS".equals(result.status)) {
-
-            return "LOSS - "
-                    + result.resultReason;
-        }
-
-        if ("OPEN".equals(result.status)) {
-
-            return "OPEN - MONITORING";
-        }
-
-        if ("EXPIRED".equals(result.status)) {
-
-            return "EXPIRED - SIGNAL PASSED";
-        }
-
-        return "WAIT";
+        updatePerformance();
     }
 
     private void findBestSignal() {
@@ -577,11 +603,16 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             }
 
+            if (!"OPEN".equals(result.status)) {
+                continue;
+            }
+
             if (bestResult == null
                     || result.confidence
                     > bestResult.confidence) {
 
                 bestSymbol = symbol;
+
                 bestResult = result;
             }
         }
@@ -603,8 +634,11 @@ public class MainActivity extends AppCompatActivity {
             );
 
             bestDetails.setText(
-                    "No strong BUY or SELL setup right now."
+                    "No active BUY or SELL setup "
+                            + "right now."
             );
+
+            updateCurrentSignalStatus();
 
             return;
         }
@@ -627,60 +661,26 @@ public class MainActivity extends AppCompatActivity {
                     Color.rgb(76, 255, 120)
             );
 
-        } else if ("SELL".equals(action)) {
-
-            bestSignal.setTextColor(
-                    Color.rgb(255, 80, 80)
-            );
-
-        } else {
-
-            bestSignal.setTextColor(
-                    Color.rgb(255, 213, 79)
-            );
-        }
-
-        if ("WIN".equals(bestResult.status)) {
-
             confirmation.setText(
-                    "WIN - "
-                            + bestResult.resultReason
+                    "BUY CONFIRMED"
             );
 
             confirmation.setTextColor(
                     Color.rgb(76, 255, 120)
             );
 
-        } else if ("LOSS".equals(bestResult.status)) {
+        } else if ("SELL".equals(action)) {
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 80, 80)
+            );
 
             confirmation.setText(
-                    "LOSS - "
-                            + bestResult.resultReason
+                    "SELL CONFIRMED"
             );
 
             confirmation.setTextColor(
                     Color.rgb(255, 80, 80)
-            );
-
-        } else if ("OPEN".equals(bestResult.status)) {
-
-            confirmation.setText(
-                    action
-                            + " - OPEN / MONITORING"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(255, 213, 79)
-            );
-
-        } else {
-
-            confirmation.setText(
-                    "WAITING FOR CONFIRMATION"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(255, 213, 79)
             );
         }
 
@@ -692,25 +692,24 @@ public class MainActivity extends AppCompatActivity {
                                 + "Market: %s\n"
                                 + "Timeframe: %s\n"
                                 + "Signal: %s\n"
-                                + "Confidence: %d%%\n\n"
-                                + "Date & Time: %s\n"
+                                + "Confidence: %d%%\n"
                                 + "Status: %s\n\n"
                                 + "Entry: %s\n"
                                 + "Stop Loss: %s\n"
                                 + "TP1: %s\n"
                                 + "TP2: %s\n"
-                                + "TP3: %s",
+                                + "TP3: %s\n\n"
+                                + "Signal Time: %s",
 
                         bestSymbol,
+
                         timeframeName(),
+
                         bestResult.action,
+
                         bestResult.confidence,
 
-                        formatDateTime(
-                                bestResult.signalTimeMillis
-                        ),
-
-                        statusText(bestResult),
+                        bestResult.status,
 
                         formatPrice(
                                 bestSymbol,
@@ -735,22 +734,287 @@ public class MainActivity extends AppCompatActivity {
                         formatPrice(
                                 bestSymbol,
                                 bestResult.tp3
+                        ),
+
+                        formatSignalTime(
+                                bestResult.signalTimeMillis
                         )
                 )
         );
+
+        updateCurrentSignalStatus();
     }
 
-    private String formatDateTime(long millis) {
+    private void updateCurrentSignalStatus() {
+
+        if (bestResult == null) {
+
+            signalStatus.setText(
+                    "WAITING FOR SIGNAL"
+            );
+
+            signalStatus.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+            signalTime.setText(
+                    "Signal time: --"
+            );
+
+            signalResult.setText(
+                    "Result: --"
+            );
+
+            return;
+        }
+
+        String status =
+                bestResult.status;
+
+        signalStatus.setText(
+                status
+        );
+
+        if ("OPEN".equals(status)) {
+
+            signalStatus.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+        } else if ("WIN".equals(status)) {
+
+            signalStatus.setTextColor(
+                    Color.rgb(76, 255, 120)
+            );
+
+        } else if ("LOSS".equals(status)) {
+
+            signalStatus.setTextColor(
+                    Color.rgb(255, 80, 80)
+            );
+
+        } else {
+
+            signalStatus.setTextColor(
+                    Color.rgb(180, 180, 180)
+            );
+        }
+
+        signalTime.setText(
+                "Signal time: "
+                        + formatSignalTime(
+                        bestResult.signalTimeMillis
+                )
+        );
+
+        if (bestResult.resultReason.isEmpty()) {
+
+            signalResult.setText(
+                    "Result: Monitoring..."
+            );
+
+        } else {
+
+            signalResult.setText(
+                    "Result: "
+                            + bestResult.resultReason
+            );
+        }
+    }
+
+    private void updatePerformance() {
+
+        int total =
+                wins
+                        + losses
+                        + expired;
+
+        double winRate = 0;
+
+        if (total > 0) {
+
+            winRate =
+                    ((double) wins / total) * 100.0;
+        }
+
+        int open = countOpenSignals();
+
+        performanceSummary.setText(
+                String.format(
+                        Locale.US,
+
+                        "WIN RATE: %.1f%%\n\n"
+                                + "WINS: %d\n"
+                                + "LOSSES: %d\n"
+                                + "OPEN: %d\n"
+                                + "EXPIRED: %d",
+
+                        winRate,
+
+                        wins,
+
+                        losses,
+
+                        open,
+
+                        expired
+                )
+        );
+
+        updateHistoryDisplay();
+    }
+
+    private int countOpenSignals() {
+
+        int count = 0;
+
+        for (SignalResult result : results.values()) {
+
+            if (result != null
+                    && "OPEN".equals(result.status)) {
+
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private void checkSignalResult(
+            String symbol,
+            SignalResult result,
+            double price) {
+
+        if (result == null || price <= 0) {
+            return;
+        }
+
+        String oldStatus =
+                result.status;
+
+        result.updateStatus(price);
+
+        String newStatus =
+                result.status;
+
+        if (oldStatus.equals(newStatus)) {
+            return;
+        }
+
+        if ("WIN".equals(newStatus)) {
+
+            wins++;
+
+            addHistory(
+                    symbol,
+                    result,
+                    "WIN"
+            );
+
+        } else if ("LOSS".equals(newStatus)) {
+
+            losses++;
+
+            addHistory(
+                    symbol,
+                    result,
+                    "LOSS"
+            );
+
+        } else if ("EXPIRED".equals(newStatus)) {
+
+            expired++;
+
+            addHistory(
+                    symbol,
+                    result,
+                    "EXPIRED"
+            );
+        }
+
+        updatePerformance();
+    }
+
+    private void addHistory(
+            String symbol,
+            SignalResult result,
+            String status) {
+
+        String entry =
+                symbol
+                        + " • "
+                        + result.action
+                        + " • "
+                        + status
+                        + "\n"
+                        + formatSignalTime(
+                        result.signalTimeMillis
+                )
+                        + "\n"
+                        + result.resultReason;
+
+        signalHistory.add(
+                0,
+                entry
+        );
+
+        if (signalHistory.size() > 20) {
+
+            signalHistory.remove(
+                    signalHistory.size() - 1
+            );
+        }
+    }
+
+    private void updateHistoryDisplay() {
+
+        if (signalHistory.isEmpty()) {
+
+            history.setText(
+                    "No completed signals yet."
+            );
+
+            return;
+        }
+
+        StringBuilder text =
+                new StringBuilder();
+
+        for (int i = 0;
+             i < signalHistory.size();
+             i++) {
+
+            text.append(
+                    i + 1
+            )
+                    .append(". ")
+                    .append(
+                            signalHistory.get(i)
+                    )
+                    .append("\n\n");
+        }
+
+        history.setText(
+                text.toString()
+        );
+    }
+
+    private String formatSignalTime(
+            long millis) {
+
+        if (millis <= 0) {
+            return "--";
+        }
 
         SimpleDateFormat format =
                 new SimpleDateFormat(
-                        "dd MMM yyyy - HH:mm:ss",
+                        "dd MMM yyyy • HH:mm:ss",
                         Locale.US
                 );
 
         return format.format(
                 new Date(millis)
-        ) + " SAST";
+        );
     }
 
     private void copyBestSignal() {
@@ -760,7 +1024,7 @@ public class MainActivity extends AppCompatActivity {
 
             Toast.makeText(
                     this,
-                    "No BUY or SELL signal to copy.",
+                    "No active BUY or SELL signal.",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -772,11 +1036,6 @@ public class MainActivity extends AppCompatActivity {
                         + "Market: "
                         + bestSymbol
                         + "\n"
-                        + "Date & Time: "
-                        + formatDateTime(
-                        bestResult.signalTimeMillis
-                )
-                        + "\n"
                         + "Timeframe: "
                         + timeframeName()
                         + "\n"
@@ -787,7 +1046,12 @@ public class MainActivity extends AppCompatActivity {
                         + bestResult.confidence
                         + "%\n"
                         + "Status: "
-                        + statusText(bestResult)
+                        + bestResult.status
+                        + "\n"
+                        + "Signal Time: "
+                        + formatSignalTime(
+                        bestResult.signalTimeMillis
+                )
                         + "\n\n"
                         + "Entry: "
                         + formatPrice(
@@ -897,13 +1161,17 @@ public class MainActivity extends AppCompatActivity {
 
                 if (result != null) {
 
-                    result.updateStatus(price);
+                    checkSignalResult(
+                            symbol,
+                            result,
+                            price
+                    );
                 }
 
                 updateScanner();
 
                 updated.setText(
-                        "Live prices updating - "
+                        "Live prices updating • "
                                 + timeframeName()
                 );
             });
@@ -914,7 +1182,9 @@ public class MainActivity extends AppCompatActivity {
                 List<Candle> candles) {
 
             SignalResult result =
-                    SignalEngine.analyze(candles);
+                    SignalEngine.analyze(
+                            candles
+                    );
 
             runOnUiThread(() -> {
 
@@ -926,7 +1196,7 @@ public class MainActivity extends AppCompatActivity {
                 updateScanner();
 
                 updated.setText(
-                        "Signals calculated - "
+                        "Signals calculated • "
                                 + timeframeName()
                 );
             });
@@ -951,10 +1221,12 @@ public class MainActivity extends AppCompatActivity {
 
         super.onDestroy();
 
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(
+                null
+        );
 
-        for (TwelveDataClient client :
-                clients.values()) {
+        for (TwelveDataClient client
+                : clients.values()) {
 
             client.close();
         }
