@@ -13,8 +13,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- HEADER -->
-
         <TextView
             android:id="@+id/title"
             android:layout_width="match_parent"
@@ -47,8 +45,6 @@
             android:textSize="13sp"
             android:gravity="center"
             android:paddingBottom="14dp" />
-
-        <!-- TIMEFRAME -->
 
         <TextView
             android:layout_width="match_parent"
@@ -108,8 +104,6 @@
             </LinearLayout>
 
         </HorizontalScrollView>
-
-        <!-- MARKET -->
 
         <TextView
             android:layout_width="match_parent"
@@ -238,7 +232,7 @@
 
         </LinearLayout>
 
-        <!-- SCANNER -->
+        <!-- MARKET SCANNER -->
 
         <TextView
             android:id="@+id/scanner"
@@ -250,6 +244,117 @@
             android:background="#11161D"
             android:padding="16dp"
             android:layout_marginTop="12dp" />
+
+        <!-- PERFORMANCE -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#151B23"
+            android:padding="18dp"
+            android:layout_marginTop="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📊 PERFORMANCE"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/performanceSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="WIN RATE: 0%\n\nWINS: 0\nLOSSES: 0\nOPEN: 0\nEXPIRED: 0"
+                android:textColor="#D6DCE5"
+                android:textSize="16sp"
+                android:gravity="center"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp" />
+
+        </LinearLayout>
+
+        <!-- CURRENT SIGNAL STATUS -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#151B23"
+            android:padding="18dp"
+            android:layout_marginTop="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📌 SIGNAL STATUS"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/signalStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="WAITING FOR SIGNAL"
+                android:textColor="#FFD54F"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingTop="14dp" />
+
+            <TextView
+                android:id="@+id/signalTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Signal time: --"
+                android:textColor="#8F9AAA"
+                android:textSize="13sp"
+                android:gravity="center"
+                android:paddingTop="8dp" />
+
+            <TextView
+                android:id="@+id/signalResult"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Result: --"
+                android:textColor="#D6DCE5"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:paddingTop="6dp" />
+
+        </LinearLayout>
+
+        <!-- SIGNAL HISTORY -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#151B23"
+            android:padding="18dp"
+            android:layout_marginTop="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📜 SIGNAL HISTORY"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/history"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="No completed signals yet."
+                android:textColor="#AAB4C3"
+                android:textSize="14sp"
+                android:paddingTop="14dp" />
+
+        </LinearLayout>
 
         <!-- ACTION BUTTONS -->
 
@@ -270,8 +375,6 @@
             android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginTop="8dp" />
-
-        <!-- STATUS -->
 
         <TextView
             android:id="@+id/updated"
