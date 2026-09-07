@@ -4,9 +4,14 @@ import java.util.List;
 
 public final class SignalEngine {
 
-    public static SignalResult analyze(List<Candle> candles) {
+    private SignalEngine() {
+    }
 
-        if (candles == null || candles.size() < 30) {
+    public static SignalResult analyze(
+            List<Candle> candles) {
+
+        if (candles == null || candles.size() < 60) {
+
             return new SignalResult(
                     "WAIT",
                     0,
@@ -18,66 +23,31 @@ public final class SignalEngine {
             );
         }
 
-        double[] closes = new double[candles.size()];
+        double[] closes =
+                new double[candles.size()];
 
         for (int i = 0; i < candles.size(); i++) {
-            closes[i] = candles.get(i).close;
+
+            closes[i] =
+                    candles.get(i).close;
         }
 
-        double ema20 = ema(closes, 20);
-        double ema50 = ema(closes, 50);
-        double rsi = rsi(closes, 14);
-        double atr = atr(candles, 14);
+        double ema20 =
+                ema(closes, 20);
 
-        double entry = closes[closes.length - 1];
+        double ema50 =
+                ema(closes, 50);
 
-        boolean buy =
-                ema20 > ema50 &&
-                rsi >= 52 &&
-                rsi < 72;
+        double rsi =
+                rsi(closes, 14);
 
-        boolean sell =
-                ema20 < ema50 &&
-                rsi <= 48 &&
-                rsi > 28;
+        double atr =
+                atr(candles, 14);
 
-        int confidence;
+        double entry =
+                closes[closes.length - 1];
 
-        if (buy) {
-
-            confidence = (int) Math.min(
-                    95,
-                    60 + ((ema20 - ema50) / Math.max(atr, 0.00001)) * 8
-            );
-
-            return new SignalResult(
-                    "BUY",
-                    entry,
-                    entry - 1.5 * atr,
-                    entry + 1.0 * atr,
-                    entry + 2.0 * atr,
-                    entry + 3.0 * atr,
-                    confidence
-            );
-
-        } else if (sell) {
-
-            confidence = (int) Math.min(
-                    95,
-                    60 + ((ema50 - ema20) / Math.max(atr, 0.00001)) * 8
-            );
-
-            return new SignalResult(
-                    "SELL",
-                    entry,
-                    entry + 1.5 * atr,
-                    entry - 1.0 * atr,
-                    entry - 2.0 * atr,
-                    entry - 3.0 * atr,
-                    confidence
-            );
-
-        } else {
+        if (atr <= 0 || entry <= 0) {
 
             return new SignalResult(
                     "WAIT",
@@ -86,82 +56,485 @@ public final class SignalEngine {
                     0,
                     0,
                     0,
-                    45
+                    0
             );
         }
+
+        /*
+         * ------------------------------------------------
+         * 1. TREND CONFIRMATION
+         * ------------------------------------------------
+         */
+
+        boolean bullishTrend =
+                ema20 > ema50;
+
+        boolean bearishTrend =
+                ema20 < ema50;
+
+
+        /*
+         * ------------------------------------------------
+         * 2. RSI MOMENTUM CONFIRMATION
+         * ------------------------------------------------
+         */
+
+        boolean bullishMomentum =
+                rsi >= 52 && rsi < 70;
+
+        boolean bearishMomentum =
+                rsi <= 48 && rsi > 30;
+
+
+        /*
+         * ------------------------------------------------
+         * 3. CANDLE CONFIRMATION
+         * ------------------------------------------------
+         */
+
+        Candle current =
+                candles.get(
+                        candles.size() - 1
+                );
+
+        Candle previous =
+                candles.get(
+                        candles.size() - 2
+                );
+
+        boolean bullishCandle =
+                current.close > current.open;
+
+        boolean bearishCandle =
+                current.close < current.open;
+
+
+        /*
+         * ------------------------------------------------
+         * 4. CANDLE MOMENTUM
+         * ------------------------------------------------
+         *
+         * We want the latest candle to have
+         * meaningful body strength.
+         */
+
+        double currentBody =
+                Math.abs(
+                        current.close
+                                - current.open
+                );
+
+        double currentRange =
+                current.high
+                        - current.low;
+
+        boolean strongBullishCandle =
+                bullishCandle
+                        && currentRange > 0
+                        && currentBody
+                        >= currentRange * 0.45;
+
+        boolean strongBearishCandle =
+                bearishCandle
+                        && currentRange > 0
+                        && currentBody
+                        >= currentRange * 0.45;
+
+
+        /*
+         * ------------------------------------------------
+         * 5. MARKET STRUCTURE
+         * ------------------------------------------------
+         *
+         * Compare the latest candle with the
+         * previous candle.
+         */
+
+        boolean higherHigh =
+                current.high > previous.high;
+
+        boolean higherLow =
+                current.low > previous.low;
+
+        boolean lowerHigh =
+                current.high < previous.high;
+
+        boolean lowerLow =
+                current.low < previous.low;
+
+        boolean bullishStructure =
+                higherHigh && higherLow;
+
+        boolean bearishStructure =
+                lowerHigh && lowerLow;
+
+
+        /*
+         * ------------------------------------------------
+         * 6. PRICE LOCATION
+         * ------------------------------------------------
+         *
+         * Price above both EMAs supports BUY.
+         * Price below both EMAs supports SELL.
+         */
+
+        boolean priceAboveTrend =
+                entry > ema20
+                        && entry > ema50;
+
+        boolean priceBelowTrend =
+                entry < ema20
+                        && entry < ema50;
+
+
+        /*
+         * ------------------------------------------------
+         * 7. SCORE THE BUY SETUP
+         * ------------------------------------------------
+         */
+
+        int buyScore = 0;
+
+        if (bullishTrend) {
+            buyScore += 20;
+        }
+
+        if (bullishMomentum) {
+            buyScore += 20;
+        }
+
+        if (bullishCandle) {
+            buyScore += 10;
+        }
+
+        if (strongBullishCandle) {
+            buyScore += 10;
+        }
+
+        if (bullishStructure) {
+            buyScore += 15;
+        }
+
+        if (priceAboveTrend) {
+            buyScore += 15;
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 8. SCORE THE SELL SETUP
+         * ------------------------------------------------
+         */
+
+        int sellScore = 0;
+
+        if (bearishTrend) {
+            sellScore += 20;
+        }
+
+        if (bearishMomentum) {
+            sellScore += 20;
+        }
+
+        if (bearishCandle) {
+            sellScore += 10;
+        }
+
+        if (strongBearishCandle) {
+            sellScore += 10;
+        }
+
+        if (bearishStructure) {
+            sellScore += 15;
+        }
+
+        if (priceBelowTrend) {
+            sellScore += 15;
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 9. MINIMUM CONFIRMATION
+         * ------------------------------------------------
+         *
+         * We don't want weak signals.
+         */
+
+        final int minimumScore = 65;
+
+
+        /*
+         * ------------------------------------------------
+         * 10. BUY SIGNAL
+         * ------------------------------------------------
+         */
+
+        if (buyScore >= minimumScore
+                && buyScore > sellScore) {
+
+            int confidence =
+                    Math.min(
+                            95,
+                            buyScore
+                    );
+
+            double sl =
+                    entry - 1.5 * atr;
+
+            double tp1 =
+                    entry + 1.0 * atr;
+
+            double tp2 =
+                    entry + 2.0 * atr;
+
+            double tp3 =
+                    entry + 3.0 * atr;
+
+            return new SignalResult(
+                    "BUY",
+                    entry,
+                    sl,
+                    tp1,
+                    tp2,
+                    tp3,
+                    confidence
+            );
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 11. SELL SIGNAL
+         * ------------------------------------------------
+         */
+
+        if (sellScore >= minimumScore
+                && sellScore > buyScore) {
+
+            int confidence =
+                    Math.min(
+                            95,
+                            sellScore
+                    );
+
+            double sl =
+                    entry + 1.5 * atr;
+
+            double tp1 =
+                    entry - 1.0 * atr;
+
+            double tp2 =
+                    entry - 2.0 * atr;
+
+            double tp3 =
+                    entry - 3.0 * atr;
+
+            return new SignalResult(
+                    "SELL",
+                    entry,
+                    sl,
+                    tp1,
+                    tp2,
+                    tp3,
+                    confidence
+            );
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 12. WAIT
+         * ------------------------------------------------
+         */
+
+        int waitConfidence =
+                Math.max(
+                        buyScore,
+                        sellScore
+                );
+
+        waitConfidence =
+                Math.min(
+                        64,
+                        waitConfidence
+                );
+
+        return new SignalResult(
+                "WAIT",
+                entry,
+                0,
+                0,
+                0,
+                0,
+                waitConfidence
+        );
     }
 
-    private static double ema(double[] values, int period) {
 
-        double multiplier = 2.0 / (period + 1);
+    /*
+     * ====================================================
+     * EMA
+     * ====================================================
+     */
 
-        double ema = values[0];
+    private static double ema(
+            double[] values,
+            int period) {
 
-        for (int i = 1; i < values.length; i++) {
-            ema = values[i] * multiplier
-                    + ema * (1 - multiplier);
+        if (values == null
+                || values.length == 0) {
+
+            return 0;
+        }
+
+        double multiplier =
+                2.0 / (period + 1);
+
+        double ema =
+                values[0];
+
+        for (int i = 1;
+             i < values.length;
+             i++) {
+
+            ema =
+                    values[i]
+                            * multiplier
+                            + ema
+                            * (1 - multiplier);
         }
 
         return ema;
     }
 
-    private static double rsi(double[] values, int period) {
 
-        if (values.length <= period) {
+    /*
+     * ====================================================
+     * RSI
+     * ====================================================
+     */
+
+    private static double rsi(
+            double[] values,
+            int period) {
+
+        if (values == null
+                || values.length <= period) {
+
             return 50;
         }
 
         double gains = 0;
         double losses = 0;
 
-        for (int i = values.length - period; i < values.length; i++) {
+        int start =
+                values.length - period;
 
-            double difference = values[i] - values[i - 1];
+        for (int i = start;
+             i < values.length;
+             i++) {
+
+            double difference =
+                    values[i]
+                            - values[i - 1];
 
             if (difference > 0) {
+
                 gains += difference;
+
             } else {
+
                 losses -= difference;
             }
         }
 
         if (losses == 0) {
+
+            if (gains == 0) {
+                return 50;
+            }
+
             return 100;
         }
 
-        double relativeStrength = gains / losses;
+        double relativeStrength =
+                gains / losses;
 
-        return 100 - (100 / (1 + relativeStrength));
+        return 100
+                - (
+                100
+                        / (
+                        1
+                                + relativeStrength
+                )
+        );
     }
 
-    private static double atr(List<Candle> candles, int period) {
 
-        int start = Math.max(
-                1,
-                candles.size() - period
-        );
+    /*
+     * ====================================================
+     * ATR
+     * ====================================================
+     */
+
+    private static double atr(
+            List<Candle> candles,
+            int period) {
+
+        if (candles == null
+                || candles.size() < 2) {
+
+            return 0;
+        }
+
+        int start =
+                Math.max(
+                        1,
+                        candles.size() - period
+                );
 
         double total = 0;
 
-        for (int i = start; i < candles.size(); i++) {
+        int count = 0;
 
-            Candle current = candles.get(i);
-            Candle previous = candles.get(i - 1);
+        for (int i = start;
+             i < candles.size();
+             i++) {
 
-            double trueRange = Math.max(
-                    current.high - current.low,
+            Candle current =
+                    candles.get(i);
+
+            Candle previous =
+                    candles.get(i - 1);
+
+            double trueRange =
                     Math.max(
-                            Math.abs(current.high - previous.close),
-                            Math.abs(current.low - previous.close)
-                    )
-            );
+                            current.high
+                                    - current.low,
+
+                            Math.max(
+                                    Math.abs(
+                                            current.high
+                                                    - previous.close
+                                    ),
+
+                                    Math.abs(
+                                            current.low
+                                                    - previous.close
+                                    )
+                            )
+                    );
 
             total += trueRange;
+
+            count++;
         }
 
-        return total / Math.max(
-                1,
-                candles.size() - start
-        );
+        if (count == 0) {
+            return 0;
+        }
+
+        return total / count;
     }
 }
