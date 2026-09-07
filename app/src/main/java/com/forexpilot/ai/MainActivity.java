@@ -1,9 +1,15 @@
 package com.forexpilot.ai;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -21,7 +27,11 @@ public class MainActivity extends AppCompatActivity {
     private TextView scanner;
     private TextView bestSignal;
     private TextView bestDetails;
+    private TextView confirmation;
     private TextView updated;
+
+    private Button refreshButton;
+    private Button copyButton;
 
     private final Handler handler =
             new Handler(Looper.getMainLooper());
@@ -43,7 +53,12 @@ public class MainActivity extends AppCompatActivity {
             "NZD/USD"
     };
 
-    // Refresh 5-minute candle signals every 5 minutes
+    private String selectedTimeframe = "5min";
+    private String selectedMarket = "ALL";
+
+    private String bestSymbol = null;
+    private SignalResult bestResult = null;
+
     private static final long REFRESH_INTERVAL =
             5 * 60 * 1000L;
 
@@ -59,9 +74,15 @@ public class MainActivity extends AppCompatActivity {
         scanner = findViewById(R.id.scanner);
         bestSignal = findViewById(R.id.bestSignal);
         bestDetails = findViewById(R.id.bestDetails);
+        confirmation = findViewById(R.id.confirmation);
         updated = findViewById(R.id.updated);
 
+        refreshButton = findViewById(R.id.refreshButton);
+        copyButton = findViewById(R.id.copyButton);
+
         title.setText("ForexPilot AI");
+
+        setupButtons();
 
         updateMarketStatus();
 
@@ -77,6 +98,14 @@ public class MainActivity extends AppCompatActivity {
             );
 
             bestSignal.setText("WAIT");
+            bestSignal.setTextColor(Color.rgb(255, 213, 79));
+
+            confirmation.setText(
+                    "WAITING FOR MARKET DATA"
+            );
+            confirmation.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
 
             bestDetails.setText(
                     "No live market data available."
@@ -91,7 +120,6 @@ public class MainActivity extends AppCompatActivity {
 
         startScanner(apiKey);
 
-        // Update market status every 30 seconds
         handler.postDelayed(
                 new Runnable() {
                     @Override
@@ -108,7 +136,6 @@ public class MainActivity extends AppCompatActivity {
                 30000L
         );
 
-        // Refresh trading signals every 5 minutes
         handler.postDelayed(
                 new Runnable() {
                     @Override
@@ -124,6 +151,164 @@ public class MainActivity extends AppCompatActivity {
                 },
                 REFRESH_INTERVAL
         );
+    }
+
+    private void setupButtons() {
+
+        Button tf5 = findViewById(R.id.tf5);
+        Button tf15 = findViewById(R.id.tf15);
+        Button tf30 = findViewById(R.id.tf30);
+        Button tf1h = findViewById(R.id.tf1h);
+        Button tf4h = findViewById(R.id.tf4h);
+        Button tf1d = findViewById(R.id.tf1d);
+
+        Button marketGold =
+                findViewById(R.id.marketGold);
+
+        Button marketEur =
+                findViewById(R.id.marketEur);
+
+        Button marketGbp =
+                findViewById(R.id.marketGbp);
+
+        Button marketJpy =
+                findViewById(R.id.marketJpy);
+
+        Button marketNzd =
+                findViewById(R.id.marketNzd);
+
+        tf5.setOnClickListener(v ->
+                selectTimeframe("5min", "5M")
+        );
+
+        tf15.setOnClickListener(v ->
+                selectTimeframe("15min", "15M")
+        );
+
+        tf30.setOnClickListener(v ->
+                selectTimeframe("30min", "30M")
+        );
+
+        tf1h.setOnClickListener(v ->
+                selectTimeframe("1h", "1H")
+        );
+
+        tf4h.setOnClickListener(v ->
+                selectTimeframe("4h", "4H")
+        );
+
+        tf1d.setOnClickListener(v ->
+                selectTimeframe("1day", "1D")
+        );
+
+        marketGold.setOnClickListener(v ->
+                selectMarket("XAU/USD")
+        );
+
+        marketEur.setOnClickListener(v ->
+                selectMarket("EUR/USD")
+        );
+
+        marketGbp.setOnClickListener(v ->
+                selectMarket("GBP/USD")
+        );
+
+        marketJpy.setOnClickListener(v ->
+                selectMarket("USD/JPY")
+        );
+
+        marketNzd.setOnClickListener(v ->
+                selectMarket("NZD/USD")
+        );
+
+        refreshButton.setOnClickListener(v -> {
+
+            String apiKey =
+                    BuildConfig.TWELVE_DATA_API_KEY;
+
+            if (apiKey == null ||
+                    apiKey.trim().isEmpty()) {
+
+                Toast.makeText(
+                        MainActivity.this,
+                        "API key is missing.",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                return;
+            }
+
+            refreshSignals(apiKey);
+
+            Toast.makeText(
+                    MainActivity.this,
+                    "Refreshing signals...",
+                    Toast.LENGTH_SHORT
+            ).show();
+        });
+
+        copyButton.setOnClickListener(v ->
+                copyBestSignal()
+        );
+    }
+
+    private void selectTimeframe(
+            String interval,
+            String display) {
+
+        selectedTimeframe = interval;
+
+        updated.setText(
+                "Timeframe selected: "
+                        + display
+                        + " • Refreshing..."
+        );
+
+        String apiKey =
+                BuildConfig.TWELVE_DATA_API_KEY;
+
+        if (apiKey != null &&
+                !apiKey.trim().isEmpty()) {
+
+            refreshSignals(apiKey);
+        }
+    }
+
+    private void selectMarket(String symbol) {
+
+        selectedMarket = symbol;
+
+        updateScanner();
+
+        updated.setText(
+                symbol
+                        + " selected • "
+                        + timeframeName()
+        );
+    }
+
+    private String timeframeName() {
+
+        switch (selectedTimeframe) {
+
+            case "15min":
+                return "15M";
+
+            case "30min":
+                return "30M";
+
+            case "1h":
+                return "1H";
+
+            case "4h":
+                return "4H";
+
+            case "1day":
+                return "1D";
+
+            default:
+                return "5M";
+        }
     }
 
     private void startScanner(String apiKey) {
@@ -158,14 +343,12 @@ public class MainActivity extends AppCompatActivity {
                     client
             );
 
-            // Get initial 5-minute candles
             client.candles(
                     symbol,
-                    "5min",
+                    selectedTimeframe,
                     apiKey
             );
 
-            // Start live price stream
             client.connect(
                     symbol,
                     apiKey
@@ -180,7 +363,9 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
 
             updated.setText(
-                    "Refreshing 5-minute signals..."
+                    "Refreshing "
+                            + timeframeName()
+                            + " signals..."
             );
 
         });
@@ -194,7 +379,7 @@ public class MainActivity extends AppCompatActivity {
 
                 client.candles(
                         symbol,
-                        "5min",
+                        selectedTimeframe,
                         apiKey
                 );
             }
@@ -228,10 +413,17 @@ public class MainActivity extends AppCompatActivity {
                 new StringBuilder();
 
         text.append(
-                "5 MINUTE MARKET SCANNER\n\n"
+                timeframeName()
+                        + " MARKET SCANNER\n\n"
         );
 
         for (String symbol : SYMBOLS) {
+
+            if (!"ALL".equals(selectedMarket)
+                    && !selectedMarket.equals(symbol)) {
+
+                continue;
+            }
 
             SignalResult result =
                     results.get(symbol);
@@ -323,14 +515,23 @@ public class MainActivity extends AppCompatActivity {
 
     private void findBestSignal() {
 
-        String bestSymbol = null;
-
-        SignalResult bestResult = null;
+        bestSymbol = null;
+        bestResult = null;
 
         for (String symbol : SYMBOLS) {
 
+            if (!"ALL".equals(selectedMarket)
+                    && !selectedMarket.equals(symbol)) {
+
+                continue;
+            }
+
             SignalResult result =
                     results.get(symbol);
+
+            if (result == null) {
+                continue;
+            }
 
             if ("WAIT".equals(result.action)) {
                 continue;
@@ -348,42 +549,101 @@ public class MainActivity extends AppCompatActivity {
 
         if (bestResult == null) {
 
-            bestSignal.setText(
-                    "WAIT"
+            bestSignal.setText("WAIT");
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+            confirmation.setText(
+                    "WAITING FOR CONFIRMATION"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 213, 79)
             );
 
             bestDetails.setText(
-                    "No strong BUY or SELL setup " +
-                    "right now."
+                    "No strong BUY or SELL setup "
+                            + "right now."
             );
 
             return;
         }
 
+        String action =
+                bestResult.action;
+
         bestSignal.setText(
                 bestSymbol
                         + " • "
-                        + bestResult.action
+                        + action
                         + " • "
                         + bestResult.confidence
                         + "%"
         );
 
+        if ("BUY".equals(action)) {
+
+            bestSignal.setTextColor(
+                    Color.rgb(76, 255, 120)
+            );
+
+            confirmation.setText(
+                    "BUY CONFIRMED"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(76, 255, 120)
+            );
+
+        } else if ("SELL".equals(action)) {
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 80, 80)
+            );
+
+            confirmation.setText(
+                    "SELL CONFIRMED"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 80, 80)
+            );
+
+        } else {
+
+            bestSignal.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+            confirmation.setText(
+                    "WAITING FOR CONFIRMATION"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+        }
+
         bestDetails.setText(
                 String.format(
                         Locale.US,
 
-                        "BEST SIGNAL\n\n" +
-                        "Market: %s\n" +
-                        "Signal: %s\n" +
-                        "Confidence: %d%%\n\n" +
-                        "Entry: %s\n" +
-                        "Stop Loss: %s\n" +
-                        "TP1: %s\n" +
-                        "TP2: %s\n" +
-                        "TP3: %s",
+                        "BEST SIGNAL\n\n"
+                                + "Market: %s\n"
+                                + "Timeframe: %s\n"
+                                + "Signal: %s\n"
+                                + "Confidence: %d%%\n\n"
+                                + "Entry: %s\n"
+                                + "Stop Loss: %s\n"
+                                + "TP1: %s\n"
+                                + "TP2: %s\n"
+                                + "TP3: %s",
 
                         bestSymbol,
+
+                        timeframeName(),
 
                         bestResult.action,
 
@@ -415,6 +675,85 @@ public class MainActivity extends AppCompatActivity {
                         )
                 )
         );
+    }
+
+    private void copyBestSignal() {
+
+        if (bestSymbol == null
+                || bestResult == null) {
+
+            Toast.makeText(
+                    this,
+                    "No BUY or SELL signal to copy.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        String text =
+                "ForexPilot AI Signal\n\n"
+                        + "Market: "
+                        + bestSymbol
+                        + "\n"
+                        + "Timeframe: "
+                        + timeframeName()
+                        + "\n"
+                        + "Signal: "
+                        + bestResult.action
+                        + "\n"
+                        + "Confidence: "
+                        + bestResult.confidence
+                        + "%\n\n"
+                        + "Entry: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.entry
+                )
+                        + "\n"
+                        + "Stop Loss: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.sl
+                )
+                        + "\n"
+                        + "TP1: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.tp1
+                )
+                        + "\n"
+                        + "TP2: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.tp2
+                )
+                        + "\n"
+                        + "TP3: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.tp3
+                );
+
+        ClipboardManager clipboard =
+                (ClipboardManager)
+                        getSystemService(
+                                Context.CLIPBOARD_SERVICE
+                        );
+
+        ClipData clip =
+                ClipData.newPlainText(
+                        "ForexPilot AI Signal",
+                        text
+                );
+
+        clipboard.setPrimaryClip(clip);
+
+        Toast.makeText(
+                this,
+                "Signal copied!",
+                Toast.LENGTH_SHORT
+        ).show();
     }
 
     private String formatPrice(
@@ -472,7 +811,8 @@ public class MainActivity extends AppCompatActivity {
                 updateScanner();
 
                 updated.setText(
-                        "Live prices updating..."
+                        "Live prices updating • "
+                                + timeframeName()
                 );
             });
         }
@@ -496,8 +836,8 @@ public class MainActivity extends AppCompatActivity {
                 updateScanner();
 
                 updated.setText(
-                        "Signals calculated from " +
-                        "5-minute candles"
+                        "Signals calculated • "
+                                + timeframeName()
                 );
             });
         }
