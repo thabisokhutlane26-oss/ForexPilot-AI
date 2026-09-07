@@ -22,12 +22,23 @@ import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
-    private TextView title, market, session, scanner;
-    private TextView bestSignal, bestDetails, confirmation, updated;
-    private TextView performanceSummary, signalStatus, signalTime;
-    private TextView signalResult, history;
+    private TextView title;
+    private TextView market;
+    private TextView session;
+    private TextView scanner;
+    private TextView bestSignal;
+    private TextView bestDetails;
+    private TextView confirmation;
+    private TextView updated;
 
-    private Button refreshButton, copyButton;
+    private TextView performanceSummary;
+    private TextView signalStatus;
+    private TextView signalTime;
+    private TextView signalResult;
+    private TextView history;
+
+    private Button refreshButton;
+    private Button copyButton;
 
     private final Handler handler =
             new Handler(Looper.getMainLooper());
@@ -103,26 +114,37 @@ public class MainActivity extends AppCompatActivity {
         copyButton =
                 findViewById(R.id.copyButton);
 
-        signalStorage = new SignalStorage(this);
+        signalStorage =
+                new SignalStorage(this);
 
+        /*
+         * Load completed history.
+         */
         loadSavedHistory();
+
+        /*
+         * Load active BUY/SELL signals.
+         */
+        loadActiveSignals();
 
         title.setText("ForexPilot AI");
 
         setupButtons();
+
         updateMarketStatus();
+
         updatePerformance();
 
         String apiKey =
                 BuildConfig.TWELVE_DATA_API_KEY;
 
-        if (apiKey == null ||
-                apiKey.trim().isEmpty()) {
+        if (apiKey == null
+                || apiKey.trim().isEmpty()) {
 
             scanner.setText(
-                    "API KEY REQUIRED\n\n" +
-                    "Add your Twelve Data API key " +
-                    "to GitHub Secrets."
+                    "API KEY REQUIRED\n\n"
+                            + "Add your Twelve Data API key "
+                            + "to GitHub Secrets."
             );
 
             bestSignal.setText("WAIT");
@@ -215,6 +237,47 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void loadActiveSignals() {
+
+        Map<String, SignalResult> active =
+                signalStorage.getActiveSignals();
+
+        for (String symbol : SYMBOLS) {
+
+            SignalResult result =
+                    active.get(symbol);
+
+            if (result != null
+                    && result.isOpen()) {
+
+                results.put(
+                        symbol,
+                        result
+                );
+
+            } else {
+
+                results.put(
+                        symbol,
+                        new SignalResult(
+                                "WAIT",
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0
+                        )
+                );
+            }
+
+            prices.put(
+                    symbol,
+                    0.0
+            );
+        }
+    }
+
     private void setupButtons() {
 
         Button tf5 = findViewById(R.id.tf5);
@@ -240,45 +303,56 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.marketNzd);
 
         tf5.setOnClickListener(v ->
-                selectTimeframe("5min", "5M"));
+                selectTimeframe("5min", "5M")
+        );
 
         tf15.setOnClickListener(v ->
-                selectTimeframe("15min", "15M"));
+                selectTimeframe("15min", "15M")
+        );
 
         tf30.setOnClickListener(v ->
-                selectTimeframe("30min", "30M"));
+                selectTimeframe("30min", "30M")
+        );
 
         tf1h.setOnClickListener(v ->
-                selectTimeframe("1h", "1H"));
+                selectTimeframe("1h", "1H")
+        );
 
         tf4h.setOnClickListener(v ->
-                selectTimeframe("4h", "4H"));
+                selectTimeframe("4h", "4H")
+        );
 
         tf1d.setOnClickListener(v ->
-                selectTimeframe("1day", "1D"));
+                selectTimeframe("1day", "1D")
+        );
 
         marketGold.setOnClickListener(v ->
-                selectMarket("XAU/USD"));
+                selectMarket("XAU/USD")
+        );
 
         marketEur.setOnClickListener(v ->
-                selectMarket("EUR/USD"));
+                selectMarket("EUR/USD")
+        );
 
         marketGbp.setOnClickListener(v ->
-                selectMarket("GBP/USD"));
+                selectMarket("GBP/USD")
+        );
 
         marketJpy.setOnClickListener(v ->
-                selectMarket("USD/JPY"));
+                selectMarket("USD/JPY")
+        );
 
         marketNzd.setOnClickListener(v ->
-                selectMarket("NZD/USD"));
+                selectMarket("NZD/USD")
+        );
 
         refreshButton.setOnClickListener(v -> {
 
             String apiKey =
                     BuildConfig.TWELVE_DATA_API_KEY;
 
-            if (apiKey == null ||
-                    apiKey.trim().isEmpty()) {
+            if (apiKey == null
+                    || apiKey.trim().isEmpty()) {
 
                 Toast.makeText(
                         MainActivity.this,
@@ -299,7 +373,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         copyButton.setOnClickListener(v ->
-                copyBestSignal());
+                copyBestSignal()
+        );
     }
 
     private void selectTimeframe(
@@ -317,8 +392,8 @@ public class MainActivity extends AppCompatActivity {
         String apiKey =
                 BuildConfig.TWELVE_DATA_API_KEY;
 
-        if (apiKey != null &&
-                !apiKey.trim().isEmpty()) {
+        if (apiKey != null
+                && !apiKey.trim().isEmpty()) {
 
             refreshSignals(apiKey);
         }
@@ -365,27 +440,42 @@ public class MainActivity extends AppCompatActivity {
 
         for (String symbol : SYMBOLS) {
 
-            results.put(
-                    symbol,
-                    new SignalResult(
-                            "WAIT",
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0
-                    )
-            );
+            /*
+             * Keep an already restored OPEN signal.
+             */
+            if (!results.containsKey(symbol)) {
 
-            prices.put(symbol, 0.0);
+                results.put(
+                        symbol,
+                        new SignalResult(
+                                "WAIT",
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0
+                        )
+                );
+            }
+
+            if (!prices.containsKey(symbol)) {
+
+                prices.put(
+                        symbol,
+                        0.0
+                );
+            }
 
             TwelveDataClient client =
                     new TwelveDataClient(
                             new PairCallback(symbol)
                     );
 
-            clients.put(symbol, client);
+            clients.put(
+                    symbol,
+                    client
+            );
 
             client.candles(
                     symbol,
@@ -463,6 +553,7 @@ public class MainActivity extends AppCompatActivity {
 
             if (!"ALL".equals(selectedMarket)
                     && !selectedMarket.equals(symbol)) {
+
                 continue;
             }
 
@@ -474,7 +565,9 @@ public class MainActivity extends AppCompatActivity {
             }
 
             double currentPrice =
-                    prices.get(symbol);
+                    prices.containsKey(symbol)
+                            ? prices.get(symbol)
+                            : 0;
 
             text.append(symbol)
                     .append("\n");
@@ -570,7 +663,9 @@ public class MainActivity extends AppCompatActivity {
             text.append("\n");
         }
 
-        scanner.setText(text.toString());
+        scanner.setText(
+                text.toString()
+        );
 
         findBestSignal();
 
@@ -586,6 +681,7 @@ public class MainActivity extends AppCompatActivity {
 
             if (!"ALL".equals(selectedMarket)
                     && !selectedMarket.equals(symbol)) {
+
                 continue;
             }
 
@@ -609,6 +705,7 @@ public class MainActivity extends AppCompatActivity {
                     > bestResult.confidence) {
 
                 bestSymbol = symbol;
+
                 bestResult = result;
             }
         }
@@ -656,7 +753,9 @@ public class MainActivity extends AppCompatActivity {
                     Color.rgb(76, 255, 120)
             );
 
-            confirmation.setText("BUY CONFIRMED");
+            confirmation.setText(
+                    "BUY CONFIRMED"
+            );
 
             confirmation.setTextColor(
                     Color.rgb(76, 255, 120)
@@ -668,7 +767,9 @@ public class MainActivity extends AppCompatActivity {
                     Color.rgb(255, 80, 80)
             );
 
-            confirmation.setText("SELL CONFIRMED");
+            confirmation.setText(
+                    "SELL CONFIRMED"
+            );
 
             confirmation.setTextColor(
                     Color.rgb(255, 80, 80)
@@ -693,9 +794,13 @@ public class MainActivity extends AppCompatActivity {
                                 + "Signal Time: %s",
 
                         bestSymbol,
+
                         timeframeName(),
+
                         bestResult.action,
+
                         bestResult.confidence,
+
                         bestResult.status,
 
                         formatPrice(
@@ -835,9 +940,13 @@ public class MainActivity extends AppCompatActivity {
                                 + "EXPIRED: %d",
 
                         winRate,
+
                         wins,
+
                         losses,
+
                         open,
+
                         expired
                 )
         );
@@ -849,7 +958,8 @@ public class MainActivity extends AppCompatActivity {
 
         int count = 0;
 
-        for (SignalResult result : results.values()) {
+        for (SignalResult result :
+                results.values()) {
 
             if (result != null
                     && "OPEN".equals(result.status)) {
@@ -879,6 +989,18 @@ public class MainActivity extends AppCompatActivity {
                 result.status;
 
         if (oldStatus.equals(newStatus)) {
+
+            /*
+             * Keep the active signal permanently saved.
+             */
+            if ("OPEN".equals(newStatus)) {
+
+                signalStorage.saveActiveSignal(
+                        symbol,
+                        result
+                );
+            }
+
             return;
         }
 
@@ -917,6 +1039,16 @@ public class MainActivity extends AppCompatActivity {
             String symbol,
             SignalResult result) {
 
+        /*
+         * Remove the active copy.
+         */
+        signalStorage.removeActiveSignal(
+                symbol
+        );
+
+        /*
+         * Save permanent completed history.
+         */
         signalStorage.saveSignal(
                 symbol,
                 result
@@ -982,13 +1114,19 @@ public class MainActivity extends AppCompatActivity {
              i < limit;
              i++) {
 
-            text.append(i + 1)
+            text.append(
+                    i + 1
+            )
                     .append(". ")
-                    .append(signalHistory.get(i))
+                    .append(
+                            signalHistory.get(i)
+                    )
                     .append("\n\n");
         }
 
-        history.setText(text.toString());
+        history.setText(
+                text.toString()
+        );
     }
 
     private String formatSignalTime(
@@ -1173,15 +1311,48 @@ public class MainActivity extends AppCompatActivity {
         public void candles(
                 List<Candle> candles) {
 
-            SignalResult result =
-                    SignalEngine.analyze(candles);
+            SignalResult newResult =
+                    SignalEngine.analyze(
+                            candles
+                    );
 
             runOnUiThread(() -> {
 
-                results.put(
-                        symbol,
-                        result
-                );
+                SignalResult existing =
+                        results.get(symbol);
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * If an existing BUY/SELL signal
+                 * is still OPEN, keep it.
+                 *
+                 * This prevents a new candle analysis
+                 * from deleting the active signal.
+                 */
+                if (existing != null
+                        && existing.isOpen()) {
+
+                    signalStorage.saveActiveSignal(
+                            symbol,
+                            existing
+                    );
+
+                } else {
+
+                    results.put(
+                            symbol,
+                            newResult
+                    );
+
+                    if (newResult.isOpen()) {
+
+                        signalStorage.saveActiveSignal(
+                                symbol,
+                                newResult
+                        );
+                    }
+                }
 
                 updateScanner();
 
@@ -1195,13 +1366,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void error(String error) {
 
-            runOnUiThread(() ->
-                    updated.setText(
-                            symbol
-                                    + ": "
-                                    + error
-                    )
-            );
+            runOnUiThread(() -> {
+
+                updated.setText(
+                        symbol
+                                + ": "
+                                + error
+                );
+            });
         }
     }
 
@@ -1210,7 +1382,9 @@ public class MainActivity extends AppCompatActivity {
 
         super.onDestroy();
 
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(
+                null
+        );
 
         for (TwelveDataClient client :
                 clients.values()) {
