@@ -14,9 +14,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.time.Instant;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
 
     private final List<String> signalHistory =
             new ArrayList<>();
+
+    private SignalStorage signalStorage;
 
     private static final String[] SYMBOLS = {
             "XAU/USD",
@@ -113,6 +113,11 @@ public class MainActivity extends AppCompatActivity {
 
         copyButton =
                 findViewById(R.id.copyButton);
+
+        signalStorage =
+                new SignalStorage(this);
+
+        loadSavedHistory();
 
         title.setText("ForexPilot AI");
 
@@ -192,6 +197,36 @@ public class MainActivity extends AppCompatActivity {
                 },
                 REFRESH_INTERVAL
         );
+    }
+
+    private void loadSavedHistory() {
+
+        signalHistory.clear();
+
+        List<String> saved =
+                signalStorage.getHistory();
+
+        signalHistory.addAll(saved);
+
+        wins = 0;
+        losses = 0;
+        expired = 0;
+
+        for (String record : saved) {
+
+            if (record.contains(" | WIN | ")) {
+
+                wins++;
+
+            } else if (record.contains(" | LOSS | ")) {
+
+                losses++;
+
+            } else if (record.contains(" | EXPIRED | ")) {
+
+                expired++;
+            }
+        }
     }
 
     private void setupButtons() {
@@ -905,57 +940,51 @@ public class MainActivity extends AppCompatActivity {
 
             wins++;
 
-            addHistory(
+            saveCompletedSignal(
                     symbol,
-                    result,
-                    "WIN"
+                    result
             );
 
         } else if ("LOSS".equals(newStatus)) {
 
             losses++;
 
-            addHistory(
+            saveCompletedSignal(
                     symbol,
-                    result,
-                    "LOSS"
+                    result
             );
 
         } else if ("EXPIRED".equals(newStatus)) {
 
             expired++;
 
-            addHistory(
+            saveCompletedSignal(
                     symbol,
-                    result,
-                    "EXPIRED"
+                    result
             );
         }
 
         updatePerformance();
     }
 
-    private void addHistory(
+    private void saveCompletedSignal(
             String symbol,
-            SignalResult result,
-            String status) {
+            SignalResult result) {
 
-        String entry =
-                symbol
-                        + " • "
-                        + result.action
-                        + " • "
-                        + status
-                        + "\n"
-                        + formatSignalTime(
-                        result.signalTimeMillis
-                )
-                        + "\n"
-                        + result.resultReason;
+        signalStorage.saveSignal(
+                symbol,
+                result
+        );
+
+        String savedRecord =
+                buildHistoryText(
+                        symbol,
+                        result
+                );
 
         signalHistory.add(
                 0,
-                entry
+                savedRecord
         );
 
         if (signalHistory.size() > 20) {
@@ -964,6 +993,23 @@ public class MainActivity extends AppCompatActivity {
                     signalHistory.size() - 1
             );
         }
+    }
+
+    private String buildHistoryText(
+            String symbol,
+            SignalResult result) {
+
+        return symbol
+                + " • "
+                + result.action
+                + " • "
+                + result.status
+                + "\n"
+                + formatSignalTime(
+                result.signalTimeMillis
+        )
+                + "\n"
+                + result.resultReason;
     }
 
     private void updateHistoryDisplay() {
@@ -980,8 +1026,14 @@ public class MainActivity extends AppCompatActivity {
         StringBuilder text =
                 new StringBuilder();
 
+        int limit =
+                Math.min(
+                        signalHistory.size(),
+                        20
+                );
+
         for (int i = 0;
-             i < signalHistory.size();
+             i < limit;
              i++) {
 
             text.append(
@@ -1006,14 +1058,14 @@ public class MainActivity extends AppCompatActivity {
             return "--";
         }
 
-        SimpleDateFormat format =
-                new SimpleDateFormat(
+        java.text.SimpleDateFormat format =
+                new java.text.SimpleDateFormat(
                         "dd MMM yyyy • HH:mm:ss",
                         Locale.US
                 );
 
         return format.format(
-                new Date(millis)
+                new java.util.Date(millis)
         );
     }
 
