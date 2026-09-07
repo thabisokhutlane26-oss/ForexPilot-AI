@@ -35,55 +35,34 @@
             android:id="@+id/session"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Session: Checking..."
+            android:text="Sessions: Checking..."
             android:textSize="16sp"
             android:gravity="center"
             android:padding="8dp" />
 
         <TextView
-            android:id="@+id/pair"
+            android:id="@+id/scanner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="EUR/USD • 5 Minute"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:padding="12dp" />
-
-        <TextView
-            android:id="@+id/price"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--"
-            android:textSize="36sp"
-            android:textStyle="bold"
-            android:gravity="center"
+            android:text="5 MINUTE MARKET SCANNER"
+            android:textSize="17sp"
             android:padding="15dp" />
 
         <TextView
-            android:id="@+id/signal"
+            android:id="@+id/bestSignal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="WAIT"
-            android:textSize="32sp"
+            android:textSize="26sp"
             android:textStyle="bold"
             android:gravity="center"
             android:padding="15dp" />
 
         <TextView
-            android:id="@+id/confidence"
+            android:id="@+id/bestDetails"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Confidence: --"
-            android:textSize="18sp"
-            android:gravity="center"
-            android:padding="8dp" />
-
-        <TextView
-            android:id="@+id/levels"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Entry: --&#10;Stop Loss: --&#10;Take Profit 1: --&#10;Take Profit 2: --&#10;Take Profit 3: --"
+            android:text="Waiting for the strongest setup..."
             android:textSize="17sp"
             android:gravity="center"
             android:padding="15dp" />
