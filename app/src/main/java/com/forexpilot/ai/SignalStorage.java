@@ -3,8 +3,12 @@ package com.forexpilot.ai;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SignalStorage {
 
@@ -13,6 +17,9 @@ public class SignalStorage {
 
     private static final String HISTORY =
             "signal_history";
+
+    private static final String ACTIVE_PREFIX =
+            "active_signal_";
 
     private final SharedPreferences preferences;
 
@@ -25,6 +32,249 @@ public class SignalStorage {
                 );
     }
 
+    /*
+     * Save a currently active signal permanently.
+     */
+    public void saveActiveSignal(
+            String symbol,
+            SignalResult result) {
+
+        if (symbol == null
+                || symbol.trim().isEmpty()
+                || result == null) {
+
+            return;
+        }
+
+        try {
+
+            JSONObject object =
+                    new JSONObject();
+
+            object.put(
+                    "symbol",
+                    symbol
+            );
+
+            object.put(
+                    "action",
+                    result.action
+            );
+
+            object.put(
+                    "entry",
+                    result.entry
+            );
+
+            object.put(
+                    "sl",
+                    result.sl
+            );
+
+            object.put(
+                    "tp1",
+                    result.tp1
+            );
+
+            object.put(
+                    "tp2",
+                    result.tp2
+            );
+
+            object.put(
+                    "tp3",
+                    result.tp3
+            );
+
+            object.put(
+                    "confidence",
+                    result.confidence
+            );
+
+            object.put(
+                    "signalTimeMillis",
+                    result.signalTimeMillis
+            );
+
+            object.put(
+                    "status",
+                    result.status
+            );
+
+            object.put(
+                    "resultReason",
+                    result.resultReason
+            );
+
+            preferences.edit()
+                    .putString(
+                            ACTIVE_PREFIX + symbol,
+                            object.toString()
+                    )
+                    .apply();
+
+        } catch (Exception ignored) {
+        }
+    }
+
+    /*
+     * Restore all active signals after app restart.
+     */
+    public Map<String, SignalResult>
+    getActiveSignals() {
+
+        Map<String, SignalResult> signals =
+                new LinkedHashMap<>();
+
+        Map<String, ?> all =
+                preferences.getAll();
+
+        for (Map.Entry<String, ?> entry
+                : all.entrySet()) {
+
+            String key =
+                    entry.getKey();
+
+            if (!key.startsWith(ACTIVE_PREFIX)) {
+                continue;
+            }
+
+            Object value =
+                    entry.getValue();
+
+            if (!(value instanceof String)) {
+                continue;
+            }
+
+            try {
+
+                JSONObject object =
+                        new JSONObject(
+                                (String) value
+                        );
+
+                String symbol =
+                        object.optString(
+                                "symbol",
+                                ""
+                        );
+
+                String action =
+                        object.optString(
+                                "action",
+                                "WAIT"
+                        );
+
+                double entryPrice =
+                        object.optDouble(
+                                "entry",
+                                0
+                        );
+
+                double sl =
+                        object.optDouble(
+                                "sl",
+                                0
+                        );
+
+                double tp1 =
+                        object.optDouble(
+                                "tp1",
+                                0
+                        );
+
+                double tp2 =
+                        object.optDouble(
+                                "tp2",
+                                0
+                        );
+
+                double tp3 =
+                        object.optDouble(
+                                "tp3",
+                                0
+                        );
+
+                int confidence =
+                        object.optInt(
+                                "confidence",
+                                0
+                        );
+
+                long signalTimeMillis =
+                        object.optLong(
+                                "signalTimeMillis",
+                                0
+                        );
+
+                String status =
+                        object.optString(
+                                "status",
+                                "OPEN"
+                        );
+
+                String resultReason =
+                        object.optString(
+                                "resultReason",
+                                ""
+                        );
+
+                if (!symbol.isEmpty()
+                        && ("BUY".equals(action)
+                        || "SELL".equals(action))) {
+
+                    SignalResult result =
+                            new SignalResult(
+                                    action,
+                                    entryPrice,
+                                    sl,
+                                    tp1,
+                                    tp2,
+                                    tp3,
+                                    confidence,
+                                    signalTimeMillis,
+                                    status,
+                                    resultReason
+                            );
+
+                    if (result.isOpen()) {
+
+                        signals.put(
+                                symbol,
+                                result
+                        );
+                    }
+                }
+
+            } catch (Exception ignored) {
+            }
+        }
+
+        return signals;
+    }
+
+    /*
+     * Remove an active signal once it is completed.
+     */
+    public void removeActiveSignal(
+            String symbol) {
+
+        if (symbol == null
+                || symbol.trim().isEmpty()) {
+
+            return;
+        }
+
+        preferences.edit()
+                .remove(
+                        ACTIVE_PREFIX + symbol
+                )
+                .apply();
+    }
+
+    /*
+     * Save completed signal history.
+     */
     public void saveSignal(
             String symbol,
             SignalResult result) {
