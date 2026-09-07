@@ -63,9 +63,6 @@ public class MainActivity extends AppCompatActivity {
     private final Map<String, Double> prices =
             new LinkedHashMap<>();
 
-    /*
-     * Keep the latest candles for every market.
-     */
     private final Map<String, List<Candle>> candleData =
             new LinkedHashMap<>();
 
@@ -236,17 +233,11 @@ public class MainActivity extends AppCompatActivity {
         );
 
         candleChart.setDrawGridBackground(false);
-
         candleChart.setDragEnabled(true);
-
         candleChart.setScaleEnabled(true);
-
         candleChart.setPinchZoom(true);
-
         candleChart.setDoubleTapToZoomEnabled(true);
-
         candleChart.setHighlightPerDragEnabled(true);
-
         candleChart.setAutoScaleMinMaxEnabled(true);
 
         candleChart.setNoDataText(
@@ -330,12 +321,6 @@ public class MainActivity extends AppCompatActivity {
 
         ArrayList<CandleEntry> entries =
                 new ArrayList<>();
-
-        /*
-         * Show the most recent candles.
-         * Maximum 80 candles keeps the chart
-         * clean and responsive.
-         */
 
         int start =
                 Math.max(
@@ -513,36 +498,21 @@ public class MainActivity extends AppCompatActivity {
                         label
                 );
 
-        line.setLineWidth(
-                1.2f
-        );
+        line.setLineWidth(1.2f);
+        line.setLineColor(color);
+        line.setTextColor(color);
+        line.setTextSize(10f);
 
-        line.setLineColor(
-                color
-        );
-
-        line.setTextColor(
-                color
-        );
-
-        line.setTextSize(
-                10f
-        );
-
-        axis.addLimitLine(
-                line
-        );
+        axis.addLimitLine(line);
     }
 
     private String getChartSymbol() {
 
         if (!"ALL".equals(selectedMarket)) {
-
             return selectedMarket;
         }
 
         if (bestSymbol != null) {
-
             return bestSymbol;
         }
 
@@ -721,33 +691,23 @@ public class MainActivity extends AppCompatActivity {
         );
 
         marketGold.setOnClickListener(v ->
-                selectMarket(
-                        "XAU/USD"
-                )
+                selectMarket("XAU/USD")
         );
 
         marketEur.setOnClickListener(v ->
-                selectMarket(
-                        "EUR/USD"
-                )
+                selectMarket("EUR/USD")
         );
 
         marketGbp.setOnClickListener(v ->
-                selectMarket(
-                        "GBP/USD"
-                )
+                selectMarket("GBP/USD")
         );
 
         marketJpy.setOnClickListener(v ->
-                selectMarket(
-                        "USD/JPY"
-                )
+                selectMarket("USD/JPY")
         );
 
         marketNzd.setOnClickListener(v ->
-                selectMarket(
-                        "NZD/USD"
-                )
+                selectMarket("NZD/USD")
         );
 
         refreshButton.setOnClickListener(v -> {
@@ -811,7 +771,6 @@ public class MainActivity extends AppCompatActivity {
                 symbol;
 
         updateScanner();
-
         updateChart();
 
         updated.setText(
@@ -1024,6 +983,15 @@ public class MainActivity extends AppCompatActivity {
                     .append(result.status)
                     .append("\n");
 
+            if (result.highestTargetReached > 0) {
+
+                text.append("Target Progress: TP")
+                        .append(
+                                result.highestTargetReached
+                        )
+                        .append(" reached\n");
+            }
+
             if (currentPrice > 0) {
 
                 text.append("Price: ")
@@ -1142,7 +1110,13 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             }
 
-            if (!"OPEN".equals(result.status)) {
+            /*
+             * IMPORTANT:
+             * OPEN, TP1 HIT and TP2 HIT are
+             * all still active signals.
+             */
+
+            if (!result.isOpen()) {
                 continue;
             }
 
@@ -1160,9 +1134,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (bestResult == null) {
 
-            bestSignal.setText(
-                    "WAIT"
-            );
+            bestSignal.setText("WAIT");
 
             bestSignal.setTextColor(
                     Color.rgb(
@@ -1252,6 +1224,17 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
+        String targetProgress =
+                "No target reached";
+
+        if (bestResult.highestTargetReached > 0) {
+
+            targetProgress =
+                    "TP"
+                            + bestResult.highestTargetReached
+                            + " reached";
+        }
+
         bestDetails.setText(
                 String.format(
                         Locale.US,
@@ -1261,7 +1244,8 @@ public class MainActivity extends AppCompatActivity {
                                 + "Timeframe: %s\n"
                                 + "Signal: %s\n"
                                 + "Confidence: %d%%\n"
-                                + "Status: %s\n\n"
+                                + "Status: %s\n"
+                                + "Target Progress: %s\n\n"
                                 + "Entry: %s\n"
                                 + "Stop Loss: %s\n"
                                 + "TP1: %s\n"
@@ -1278,6 +1262,8 @@ public class MainActivity extends AppCompatActivity {
                         bestResult.confidence,
 
                         bestResult.status,
+
+                        targetProgress,
 
                         formatPrice(
                                 bestSymbol,
@@ -1362,6 +1348,26 @@ public class MainActivity extends AppCompatActivity {
                             255,
                             213,
                             79
+                    )
+            );
+
+        } else if ("TP1 HIT".equals(status)) {
+
+            signalStatus.setTextColor(
+                    Color.rgb(
+                            255,
+                            193,
+                            7
+                    )
+            );
+
+        } else if ("TP2 HIT".equals(status)) {
+
+            signalStatus.setTextColor(
+                    Color.rgb(
+                            255,
+                            152,
+                            0
                     )
             );
 
@@ -1475,8 +1481,13 @@ public class MainActivity extends AppCompatActivity {
         for (SignalResult result :
                 results.values()) {
 
+            /*
+             * OPEN + TP1 HIT + TP2 HIT
+             * are all active.
+             */
+
             if (result != null
-                    && "OPEN".equals(result.status)) {
+                    && result.isOpen()) {
 
                 count++;
             }
@@ -1487,7 +1498,7 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * SIGNAL RESULT
+     * SIGNAL RESULT TRACKING
      * ========================================================
      */
 
@@ -1505,6 +1516,9 @@ public class MainActivity extends AppCompatActivity {
         String oldStatus =
                 result.status;
 
+        int oldTarget =
+                result.highestTargetReached;
+
         result.updateStatus(
                 price
         );
@@ -1512,9 +1526,21 @@ public class MainActivity extends AppCompatActivity {
         String newStatus =
                 result.status;
 
-        if (oldStatus.equals(newStatus)) {
+        int newTarget =
+                result.highestTargetReached;
 
-            if ("OPEN".equals(newStatus)) {
+        /*
+         * Nothing changed.
+         */
+
+        if (oldStatus.equals(newStatus)
+                && oldTarget == newTarget) {
+
+            /*
+             * Keep active signal safely stored.
+             */
+
+            if (result.isOpen()) {
 
                 signalStorage.saveActiveSignal(
                         symbol,
@@ -1524,6 +1550,30 @@ public class MainActivity extends AppCompatActivity {
 
             return;
         }
+
+        /*
+         * TP1 or TP2 reached.
+         *
+         * These are NOT completed signals.
+         * They remain active and must be saved.
+         */
+
+        if ("TP1 HIT".equals(newStatus)
+                || "TP2 HIT".equals(newStatus)) {
+
+            signalStorage.saveActiveSignal(
+                    symbol,
+                    result
+            );
+
+            updateScanner();
+
+            return;
+        }
+
+        /*
+         * Final outcomes.
+         */
 
         if ("WIN".equals(newStatus)) {
 
@@ -1598,6 +1648,13 @@ public class MainActivity extends AppCompatActivity {
             String symbol,
             SignalResult result) {
 
+        String target =
+                result.highestTargetReached > 0
+                        ? "TP"
+                        + result.highestTargetReached
+                        + " reached"
+                        : "No TP reached";
+
         return symbol
                 + " • "
                 + result.action
@@ -1607,6 +1664,8 @@ public class MainActivity extends AppCompatActivity {
                 + formatSignalTime(
                 result.signalTimeMillis
         )
+                + "\n"
+                + target
                 + "\n"
                 + result.resultReason;
     }
@@ -1702,6 +1761,13 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        String targetProgress =
+                bestResult.highestTargetReached > 0
+                        ? "TP"
+                        + bestResult.highestTargetReached
+                        + " reached"
+                        : "No target reached";
+
         String text =
                 "ForexPilot AI Signal\n\n"
                         + "Market: "
@@ -1715,9 +1781,13 @@ public class MainActivity extends AppCompatActivity {
                         + "\n"
                         + "Confidence: "
                         + bestResult.confidence
-                        + "%\n"
+                        + "%"
+                        + "\n"
                         + "Status: "
                         + bestResult.status
+                        + "\n"
+                        + "Target Progress: "
+                        + targetProgress
                         + "\n"
                         + "Signal Time: "
                         + formatSignalTime(
@@ -1876,10 +1946,6 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            /*
-             * Store the real candles for the chart.
-             */
-
             List<Candle> copy =
                     new ArrayList<>(
                             candles
@@ -1901,7 +1967,12 @@ public class MainActivity extends AppCompatActivity {
                         results.get(symbol);
 
                 /*
-                 * Keep an already-open signal.
+                 * Never overwrite an active signal.
+                 *
+                 * This includes:
+                 * OPEN
+                 * TP1 HIT
+                 * TP2 HIT
                  */
 
                 if (existing != null
