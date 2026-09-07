@@ -12,14 +12,13 @@ public class SignalResult {
 
     public final int confidence;
 
-    // Signal date/time
+    // Time when this signal was created
     public final long signalTimeMillis;
 
-    // Signal status
-    // OPEN, WIN, LOSS, EXPIRED
+    // OPEN, WIN, LOSS, EXPIRED, WAIT
     public String status;
 
-    // Which target was reached
+    // Reason for the result
     public String resultReason;
 
     public SignalResult(
@@ -59,8 +58,8 @@ public class SignalResult {
     }
 
     /**
-     * Update the signal result
-     * using the latest live market price.
+     * Updates the signal status
+     * using the current live market price.
      */
     public void updateStatus(double currentPrice) {
 
@@ -74,36 +73,46 @@ public class SignalResult {
 
         if ("BUY".equals(action)) {
 
-            // Stop Loss hit first
+            // Stop Loss
             if (currentPrice <= sl) {
 
                 status = "LOSS";
-                resultReason = "STOP LOSS HIT";
+
+                resultReason =
+                        "STOP LOSS HIT";
 
                 return;
             }
 
-            // Take profit levels
+            // TP3
             if (currentPrice >= tp3) {
 
                 status = "WIN";
-                resultReason = "TP3 HIT";
+
+                resultReason =
+                        "TP3 HIT";
 
                 return;
             }
 
+            // TP2
             if (currentPrice >= tp2) {
 
                 status = "WIN";
-                resultReason = "TP2 HIT";
+
+                resultReason =
+                        "TP2 HIT";
 
                 return;
             }
 
+            // TP1
             if (currentPrice >= tp1) {
 
                 status = "WIN";
-                resultReason = "TP1 HIT";
+
+                resultReason =
+                        "TP1 HIT";
 
                 return;
             }
@@ -111,37 +120,83 @@ public class SignalResult {
 
         if ("SELL".equals(action)) {
 
-            // Stop Loss hit first
+            // Stop Loss
             if (currentPrice >= sl) {
 
                 status = "LOSS";
-                resultReason = "STOP LOSS HIT";
+
+                resultReason =
+                        "STOP LOSS HIT";
 
                 return;
             }
 
-            // Take profit levels
+            // TP3
             if (currentPrice <= tp3) {
 
                 status = "WIN";
-                resultReason = "TP3 HIT";
+
+                resultReason =
+                        "TP3 HIT";
 
                 return;
             }
 
+            // TP2
             if (currentPrice <= tp2) {
 
                 status = "WIN";
-                resultReason = "TP2 HIT";
+
+                resultReason =
+                        "TP2 HIT";
 
                 return;
             }
 
+            // TP1
             if (currentPrice <= tp1) {
 
                 status = "WIN";
-                resultReason = "TP1 HIT";
+
+                resultReason =
+                        "TP1 HIT";
+
+                return;
             }
         }
+    }
+
+    /**
+     * Manually expire an active signal.
+     */
+    public void expire() {
+
+        if ("OPEN".equals(status)) {
+
+            status = "EXPIRED";
+
+            resultReason =
+                    "SIGNAL EXPIRED";
+        }
+    }
+
+    /**
+     * Returns true when this signal
+     * is currently active.
+     */
+    public boolean isOpen() {
+
+        return "OPEN".equals(status);
+    }
+
+    /**
+     * Returns true when this signal
+     * has completed.
+     */
+    public boolean isCompleted() {
+
+        return "WIN".equals(status)
+                || "LOSS".equals(status)
+                || "EXPIRED".equals(status);
     }
 }
