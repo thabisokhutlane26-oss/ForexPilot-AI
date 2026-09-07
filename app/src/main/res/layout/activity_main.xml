@@ -46,6 +46,8 @@
             android:gravity="center"
             android:paddingBottom="14dp" />
 
+        <!-- TIMEFRAME -->
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -105,6 +107,8 @@
 
         </HorizontalScrollView>
 
+        <!-- MARKETS -->
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -158,6 +162,33 @@
             </LinearLayout>
 
         </HorizontalScrollView>
+
+        <!-- PRICE CHART -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#151B23"
+            android:padding="12dp"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📊 PRICE CHART"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:paddingBottom="10dp" />
+
+            <com.github.mikephil.charting.charts.CandleStickChart
+                android:id="@+id/candleChart"
+                android:layout_width="match_parent"
+                android:layout_height="360dp"
+                android:background="#0B0F14" />
+
+        </LinearLayout>
 
         <!-- BEST SIGNAL -->
 
