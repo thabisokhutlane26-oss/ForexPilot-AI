@@ -12,13 +12,11 @@ public class SignalResult {
 
     public final int confidence;
 
-    // Time when this signal was created
     public final long signalTimeMillis;
 
     // OPEN, WIN, LOSS, EXPIRED, WAIT
     public String status;
 
-    // Reason for the result
     public String resultReason;
 
     public SignalResult(
@@ -30,37 +28,69 @@ public class SignalResult {
             double tp3,
             int confidence) {
 
-        this.action = action;
+        this(
+                action,
+                entry,
+                sl,
+                tp1,
+                tp2,
+                tp3,
+                confidence,
+                System.currentTimeMillis(),
+                null,
+                ""
+        );
+    }
 
+    /*
+     * Constructor used when restoring a signal
+     * from permanent storage.
+     */
+    public SignalResult(
+            String action,
+            double entry,
+            double sl,
+            double tp1,
+            double tp2,
+            double tp3,
+            int confidence,
+            long signalTimeMillis,
+            String status,
+            String resultReason) {
+
+        this.action = action;
         this.entry = entry;
         this.sl = sl;
-
         this.tp1 = tp1;
         this.tp2 = tp2;
         this.tp3 = tp3;
-
         this.confidence = confidence;
 
-        this.signalTimeMillis =
-                System.currentTimeMillis();
+        this.signalTimeMillis = signalTimeMillis;
 
-        if ("BUY".equals(action)
-                || "SELL".equals(action)) {
+        if (status == null || status.trim().isEmpty()) {
 
-            this.status = "OPEN";
+            if ("BUY".equals(action)
+                    || "SELL".equals(action)) {
+
+                this.status = "OPEN";
+
+            } else {
+
+                this.status = "WAIT";
+            }
 
         } else {
 
-            this.status = "WAIT";
+            this.status = status;
         }
 
-        this.resultReason = "";
+        this.resultReason =
+                resultReason == null
+                        ? ""
+                        : resultReason;
     }
 
-    /**
-     * Updates the signal status
-     * using the current live market price.
-     */
     public void updateStatus(double currentPrice) {
 
         if (currentPrice <= 0) {
@@ -73,7 +103,6 @@ public class SignalResult {
 
         if ("BUY".equals(action)) {
 
-            // Stop Loss
             if (currentPrice <= sl) {
 
                 status = "LOSS";
@@ -84,7 +113,6 @@ public class SignalResult {
                 return;
             }
 
-            // TP3
             if (currentPrice >= tp3) {
 
                 status = "WIN";
@@ -95,7 +123,6 @@ public class SignalResult {
                 return;
             }
 
-            // TP2
             if (currentPrice >= tp2) {
 
                 status = "WIN";
@@ -106,7 +133,6 @@ public class SignalResult {
                 return;
             }
 
-            // TP1
             if (currentPrice >= tp1) {
 
                 status = "WIN";
@@ -120,7 +146,6 @@ public class SignalResult {
 
         if ("SELL".equals(action)) {
 
-            // Stop Loss
             if (currentPrice >= sl) {
 
                 status = "LOSS";
@@ -131,7 +156,6 @@ public class SignalResult {
                 return;
             }
 
-            // TP3
             if (currentPrice <= tp3) {
 
                 status = "WIN";
@@ -142,7 +166,6 @@ public class SignalResult {
                 return;
             }
 
-            // TP2
             if (currentPrice <= tp2) {
 
                 status = "WIN";
@@ -153,7 +176,6 @@ public class SignalResult {
                 return;
             }
 
-            // TP1
             if (currentPrice <= tp1) {
 
                 status = "WIN";
@@ -166,9 +188,6 @@ public class SignalResult {
         }
     }
 
-    /**
-     * Manually expire an active signal.
-     */
     public void expire() {
 
         if ("OPEN".equals(status)) {
@@ -180,19 +199,11 @@ public class SignalResult {
         }
     }
 
-    /**
-     * Returns true when this signal
-     * is currently active.
-     */
     public boolean isOpen() {
 
         return "OPEN".equals(status);
     }
 
-    /**
-     * Returns true when this signal
-     * has completed.
-     */
     public boolean isCompleted() {
 
         return "WIN".equals(status)
