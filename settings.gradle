@@ -1,11 +1,18 @@
-ForexPilot-AI/
-├── app/
-│   ├── build.gradle
-│   └── src/
-├── build.gradle
-├── settings.gradle
-├── gradle.properties
-├── gradlew
-└── .github/
-    └── workflows/
-        └── build.yml
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "ForexPilot-AI"
+include(":app")
