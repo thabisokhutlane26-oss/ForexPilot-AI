@@ -659,4 +659,306 @@ public class MainActivity extends AppCompatActivity {
             );
 
             confirmation.setTextColor(
-                    Color.rgb(255, 80, 
+                    Color.rgb(255, 80, 80)
+            );
+
+        } else if ("OPEN".equals(bestResult.status)) {
+
+            confirmation.setText(
+                    action
+                            + " - OPEN / MONITORING"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+
+        } else {
+
+            confirmation.setText(
+                    "WAITING FOR CONFIRMATION"
+            );
+
+            confirmation.setTextColor(
+                    Color.rgb(255, 213, 79)
+            );
+        }
+
+        bestDetails.setText(
+                String.format(
+                        Locale.US,
+
+                        "BEST SIGNAL\n\n"
+                                + "Market: %s\n"
+                                + "Timeframe: %s\n"
+                                + "Signal: %s\n"
+                                + "Confidence: %d%%\n\n"
+                                + "Date & Time: %s\n"
+                                + "Status: %s\n\n"
+                                + "Entry: %s\n"
+                                + "Stop Loss: %s\n"
+                                + "TP1: %s\n"
+                                + "TP2: %s\n"
+                                + "TP3: %s",
+
+                        bestSymbol,
+                        timeframeName(),
+                        bestResult.action,
+                        bestResult.confidence,
+
+                        formatDateTime(
+                                bestResult.signalTimeMillis
+                        ),
+
+                        statusText(bestResult),
+
+                        formatPrice(
+                                bestSymbol,
+                                bestResult.entry
+                        ),
+
+                        formatPrice(
+                                bestSymbol,
+                                bestResult.sl
+                        ),
+
+                        formatPrice(
+                                bestSymbol,
+                                bestResult.tp1
+                        ),
+
+                        formatPrice(
+                                bestSymbol,
+                                bestResult.tp2
+                        ),
+
+                        formatPrice(
+                                bestSymbol,
+                                bestResult.tp3
+                        )
+                )
+        );
+    }
+
+    private String formatDateTime(long millis) {
+
+        SimpleDateFormat format =
+                new SimpleDateFormat(
+                        "dd MMM yyyy - HH:mm:ss",
+                        Locale.US
+                );
+
+        return format.format(
+                new Date(millis)
+        ) + " SAST";
+    }
+
+    private void copyBestSignal() {
+
+        if (bestSymbol == null
+                || bestResult == null) {
+
+            Toast.makeText(
+                    this,
+                    "No BUY or SELL signal to copy.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        String text =
+                "ForexPilot AI Signal\n\n"
+                        + "Market: "
+                        + bestSymbol
+                        + "\n"
+                        + "Date & Time: "
+                        + formatDateTime(
+                        bestResult.signalTimeMillis
+                )
+                        + "\n"
+                        + "Timeframe: "
+                        + timeframeName()
+                        + "\n"
+                        + "Signal: "
+                        + bestResult.action
+                        + "\n"
+                        + "Confidence: "
+                        + bestResult.confidence
+                        + "%\n"
+                        + "Status: "
+                        + statusText(bestResult)
+                        + "\n\n"
+                        + "Entry: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.entry
+                )
+                        + "\n"
+                        + "Stop Loss: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.sl
+                )
+                        + "\n"
+                        + "TP1: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.tp1
+                )
+                        + "\n"
+                        + "TP2: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.tp2
+                )
+                        + "\n"
+                        + "TP3: "
+                        + formatPrice(
+                        bestSymbol,
+                        bestResult.tp3
+                );
+
+        ClipboardManager clipboard =
+                (ClipboardManager)
+                        getSystemService(
+                                Context.CLIPBOARD_SERVICE
+                        );
+
+        ClipData clip =
+                ClipData.newPlainText(
+                        "ForexPilot AI Signal",
+                        text
+                );
+
+        clipboard.setPrimaryClip(clip);
+
+        Toast.makeText(
+                this,
+                "Signal copied!",
+                Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private String formatPrice(
+            String symbol,
+            double value) {
+
+        if (value <= 0) {
+            return "--";
+        }
+
+        if ("USD/JPY".equals(symbol)) {
+
+            return String.format(
+                    Locale.US,
+                    "%.3f",
+                    value
+            );
+        }
+
+        if ("XAU/USD".equals(symbol)) {
+
+            return String.format(
+                    Locale.US,
+                    "%.2f",
+                    value
+            );
+        }
+
+        return String.format(
+                Locale.US,
+                "%.5f",
+                value
+        );
+    }
+
+    private class PairCallback
+            implements TwelveDataClient.Callback {
+
+        private final String symbol;
+
+        PairCallback(String symbol) {
+            this.symbol = symbol;
+        }
+
+        @Override
+        public void price(double price) {
+
+            runOnUiThread(() -> {
+
+                prices.put(
+                        symbol,
+                        price
+                );
+
+                SignalResult result =
+                        results.get(symbol);
+
+                if (result != null) {
+
+                    result.updateStatus(price);
+                }
+
+                updateScanner();
+
+                updated.setText(
+                        "Live prices updating - "
+                                + timeframeName()
+                );
+            });
+        }
+
+        @Override
+        public void candles(
+                List<Candle> candles) {
+
+            SignalResult result =
+                    SignalEngine.analyze(candles);
+
+            runOnUiThread(() -> {
+
+                results.put(
+                        symbol,
+                        result
+                );
+
+                updateScanner();
+
+                updated.setText(
+                        "Signals calculated - "
+                                + timeframeName()
+                );
+            });
+        }
+
+        @Override
+        public void error(String error) {
+
+            runOnUiThread(() -> {
+
+                updated.setText(
+                        symbol
+                                + ": "
+                                + error
+                );
+            });
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        super.onDestroy();
+
+        handler.removeCallbacksAndMessages(null);
+
+        for (TwelveDataClient client :
+                clients.values()) {
+
+            client.close();
+        }
+
+        clients.clear();
+    }
+}
