@@ -3,78 +3,285 @@
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#0B0F14"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="16dp">
+
+        <!-- HEADER -->
 
         <TextView
             android:id="@+id/title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="ForexPilot AI"
-            android:textSize="30sp"
+            android:text="FOREXPILOT AI"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:padding="10dp" />
+            android:paddingTop="10dp"
+            android:paddingBottom="4dp" />
 
         <TextView
             android:id="@+id/market"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="FOREX MARKET: CHECKING..."
-            android:textSize="18sp"
+            android:textColor="#66FF99"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:padding="10dp" />
+            android:padding="6dp" />
 
         <TextView
             android:id="@+id/session"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Sessions: Checking..."
-            android:textSize="16sp"
+            android:textColor="#AAB4C3"
+            android:textSize="13sp"
             android:gravity="center"
-            android:padding="8dp" />
+            android:paddingBottom="14dp" />
+
+        <!-- TIMEFRAME -->
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TIMEFRAME"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/tf5"
+                    android:layout_width="70dp"
+                    android:layout_height="48dp"
+                    android:text="5M" />
+
+                <Button
+                    android:id="@+id/tf15"
+                    android:layout_width="70dp"
+                    android:layout_height="48dp"
+                    android:text="15M" />
+
+                <Button
+                    android:id="@+id/tf30"
+                    android:layout_width="70dp"
+                    android:layout_height="48dp"
+                    android:text="30M" />
+
+                <Button
+                    android:id="@+id/tf1h"
+                    android:layout_width="70dp"
+                    android:layout_height="48dp"
+                    android:text="1H" />
+
+                <Button
+                    android:id="@+id/tf4h"
+                    android:layout_width="70dp"
+                    android:layout_height="48dp"
+                    android:text="4H" />
+
+                <Button
+                    android:id="@+id/tf1d"
+                    android:layout_width="70dp"
+                    android:layout_height="48dp"
+                    android:text="1D" />
+
+            </LinearLayout>
+
+        </HorizontalScrollView>
+
+        <!-- MARKET -->
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MARKETS"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="18dp"
+            android:paddingBottom="8dp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/marketGold"
+                    android:layout_width="95dp"
+                    android:layout_height="48dp"
+                    android:text="XAU/USD" />
+
+                <Button
+                    android:id="@+id/marketEur"
+                    android:layout_width="95dp"
+                    android:layout_height="48dp"
+                    android:text="EUR/USD" />
+
+                <Button
+                    android:id="@+id/marketGbp"
+                    android:layout_width="95dp"
+                    android:layout_height="48dp"
+                    android:text="GBP/USD" />
+
+                <Button
+                    android:id="@+id/marketJpy"
+                    android:layout_width="95dp"
+                    android:layout_height="48dp"
+                    android:text="USD/JPY" />
+
+                <Button
+                    android:id="@+id/marketNzd"
+                    android:layout_width="95dp"
+                    android:layout_height="48dp"
+                    android:text="NZD/USD" />
+
+            </LinearLayout>
+
+        </HorizontalScrollView>
+
+        <!-- BEST SIGNAL -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#151B23"
+            android:padding="18dp"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⭐ BEST SIGNAL NOW"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/bestSignal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="WAIT"
+                android:textColor="#FFD54F"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingTop="16dp"
+                android:paddingBottom="12dp" />
+
+            <TextView
+                android:id="@+id/bestDetails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Waiting for market analysis..."
+                android:textColor="#D6DCE5"
+                android:textSize="16sp"
+                android:gravity="center"
+                android:padding="8dp" />
+
+        </LinearLayout>
+
+        <!-- CONFIRMATION -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#151B23"
+            android:padding="18dp"
+            android:layout_marginTop="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🕯️ CONFIRMATION"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/confirmation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="WAITING FOR CONFIRMATION"
+                android:textColor="#FFD54F"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingTop="14dp" />
+
+        </LinearLayout>
+
+        <!-- SCANNER -->
 
         <TextView
             android:id="@+id/scanner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="5 MINUTE MARKET SCANNER"
-            android:textSize="17sp"
-            android:padding="15dp" />
+            android:textColor="#D6DCE5"
+            android:textSize="15sp"
+            android:background="#11161D"
+            android:padding="16dp"
+            android:layout_marginTop="12dp" />
 
-        <TextView
-            android:id="@+id/bestSignal"
+        <!-- ACTION BUTTONS -->
+
+        <Button
+            android:id="@+id/refreshButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="WAIT"
-            android:textSize="26sp"
+            android:layout_height="55dp"
+            android:text="↻  REFRESH SIGNALS"
+            android:textSize="16sp"
             android:textStyle="bold"
-            android:gravity="center"
-            android:padding="15dp" />
+            android:layout_marginTop="16dp" />
 
-        <TextView
-            android:id="@+id/bestDetails"
+        <Button
+            android:id="@+id/copyButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Waiting for the strongest setup..."
-            android:textSize="17sp"
-            android:gravity="center"
-            android:padding="15dp" />
+            android:layout_height="55dp"
+            android:text="📋  COPY SIGNAL"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="8dp" />
+
+        <!-- STATUS -->
 
         <TextView
             android:id="@+id/updated"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Waiting for market data..."
-            android:textSize="14sp"
+            android:textColor="#8F9AAA"
+            android:textSize="13sp"
             android:gravity="center"
-            android:padding="10dp" />
+            android:padding="16dp" />
 
     </LinearLayout>
 
