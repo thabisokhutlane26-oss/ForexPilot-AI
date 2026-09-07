@@ -1,1 +1,11 @@
-
+ForexPilot-AI/
+├── app/
+│   ├── build.gradle
+│   └── src/
+├── build.gradle
+├── settings.gradle
+├── gradle.properties
+├── gradlew
+└── .github/
+    └── workflows/
+        └── build.yml
