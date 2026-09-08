@@ -1,5 +1,6 @@
 package com.forexpilot.ai;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class SignalEngine {
@@ -7,42 +8,45 @@ public final class SignalEngine {
     private SignalEngine() {
     }
 
+    /*
+     * ========================================================
+     * STANDARD CANDLE ANALYSIS
+     * ========================================================
+     *
+     * Keeps compatibility with the existing app.
+     */
+
     public static SignalResult analyze(
             List<Candle> candles) {
+
+        return analyze(
+                candles,
+                0
+        );
+    }
+
+    /*
+     * ========================================================
+     * LIVE PRICE ANALYSIS
+     * ========================================================
+     *
+     * If livePrice is greater than zero, the latest
+     * candle close is temporarily replaced by the
+     * live market price for the directional analysis.
+     *
+     * The original candle list is NEVER modified.
+     */
+
+    public static SignalResult analyze(
+            List<Candle> candles,
+            double livePrice) {
 
         if (candles == null
                 || candles.size() < 60) {
 
             return new SignalResult(
                     "WAIT",
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-            );
-        }
-
-        int size = candles.size();
-
-        double[] closes =
-                new double[size];
-
-        for (int i = 0; i < size; i++) {
-
-            closes[i] =
-                    candles.get(i).close;
-        }
-
-        double entry =
-                closes[size - 1];
-
-        if (entry <= 0) {
-
-            return new SignalResult(
-                    "WAIT",
-                    entry,
+                    livePrice > 0 ? livePrice : 0,
                     0,
                     0,
                     0,
@@ -52,13 +56,105 @@ public final class SignalEngine {
         }
 
         /*
+         * Make a safe working copy.
+         */
+
+        List<Candle> working =
+                new ArrayList<>(
+                        candles
+                );
+
+        int size =
+                working.size();
+
+        Candle latest =
+                working.get(size - 1);
+
+        /*
+         * Use live price only when it is valid.
+         */
+
+        double entry =
+                livePrice > 0
+                        ? livePrice
+                        : latest.close;
+
+        if (entry <= 0) {
+
+            return new SignalResult(
+                    "WAIT",
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+            );
+        }
+
+        /*
+         * Build a temporary current candle.
+         *
+         * This gives the engine a live approximation
+         * of the current candle instead of waiting for
+         * the candle to close.
+         */
+
+        if (livePrice > 0) {
+
+            double liveHigh =
+                    Math.max(
+                            latest.high,
+                            livePrice
+                    );
+
+            double liveLow =
+                    Math.min(
+                            latest.low,
+                            livePrice
+                    );
+
+            working.set(
+                    size - 1,
+                    new Candle(
+                            latest.open,
+                            liveHigh,
+                            liveLow,
+                            livePrice
+                    )
+            );
+        }
+
+        /*
+         * Build close array.
+         */
+
+        double[] closes =
+                new double[size];
+
+        for (int i = 0;
+             i < size;
+             i++) {
+
+            closes[i] =
+                    working.get(i).close;
+        }
+
+        /*
          * Core indicators.
          */
+
         double ema20 =
-                ema(closes, 20);
+                ema(
+                        closes,
+                        20
+                );
 
         double ema50 =
-                ema(closes, 50);
+                ema(
+                        closes,
+                        50
+                );
 
         double previousEma20 =
                 emaUntil(
@@ -75,10 +171,16 @@ public final class SignalEngine {
                 );
 
         double rsi =
-                rsi(closes, 14);
+                rsi(
+                        closes,
+                        14
+                );
 
         double atr =
-                atr(candles, 14);
+                atr(
+                        working,
+                        14
+                );
 
         if (atr <= 0) {
 
@@ -94,21 +196,23 @@ public final class SignalEngine {
         }
 
         /*
-         * Current and previous candles.
+         * Current candles.
          */
+
         Candle current =
-                candles.get(size - 1);
+                working.get(size - 1);
 
         Candle previous =
-                candles.get(size - 2);
+                working.get(size - 2);
 
         Candle twoBack =
-                candles.get(size - 3);
+                working.get(size - 3);
 
         double currentRange =
                 Math.max(
                         0,
-                        current.high - current.low
+                        current.high
+                                - current.low
                 );
 
         double currentBody =
@@ -117,24 +221,22 @@ public final class SignalEngine {
                                 - current.open
                 );
 
-        double previousRange =
-                Math.max(
-                        0,
-                        previous.high - previous.low
-                );
-
         /*
          * Candle direction.
          */
+
         boolean bullishCandle =
-                current.close > current.open;
+                current.close
+                        > current.open;
 
         boolean bearishCandle =
-                current.close < current.open;
+                current.close
+                        < current.open;
 
         /*
          * Strong candle confirmation.
          */
+
         boolean strongBullishCandle =
                 bullishCandle
                         && currentRange > 0
@@ -148,21 +250,19 @@ public final class SignalEngine {
                         >= currentRange * 0.50;
 
         /*
-         * Close location inside the candle.
-         *
-         * A bullish candle closing near its high
-         * is stronger.
-         *
-         * A bearish candle closing near its low
-         * is stronger.
+         * Close location.
          */
-        double closeLocation = 0.5;
+
+        double closeLocation =
+                0.5;
 
         if (currentRange > 0) {
 
             closeLocation =
-                    (current.close
-                            - current.low)
+                    (
+                            current.close
+                                    - current.low
+                    )
                             / currentRange;
         }
 
@@ -173,8 +273,9 @@ public final class SignalEngine {
                 closeLocation <= 0.30;
 
         /*
-         * Trend direction.
+         * Trend.
          */
+
         boolean bullishTrend =
                 ema20 > ema50;
 
@@ -184,6 +285,7 @@ public final class SignalEngine {
         /*
          * EMA slope.
          */
+
         boolean ema20Rising =
                 ema20 > previousEma20;
 
@@ -207,10 +309,11 @@ public final class SignalEngine {
         /*
          * Momentum.
          *
-         * We avoid buying when RSI is already
-         * extremely overbought and avoid selling
-         * when RSI is extremely oversold.
+         * We keep a reasonable zone instead of
+         * buying at extreme RSI or selling at
+         * extreme RSI.
          */
+
         boolean bullishMomentum =
                 rsi >= 52
                         && rsi <= 68;
@@ -220,12 +323,9 @@ public final class SignalEngine {
                         && rsi >= 32;
 
         /*
-         * Recent market structure.
-         *
-         * We examine several candles instead of
-         * comparing only the latest candle with
-         * the previous candle.
+         * Recent structure.
          */
+
         int structureStart =
                 Math.max(
                         0,
@@ -233,17 +333,18 @@ public final class SignalEngine {
                 );
 
         double recentHigh =
-                Double.MIN_VALUE;
+                -Double.MAX_VALUE;
 
         double recentLow =
                 Double.MAX_VALUE;
 
-        for (int i = structureStart;
+        for (int i =
+                     structureStart;
              i < size - 1;
              i++) {
 
             Candle candle =
-                    candles.get(i);
+                    working.get(i);
 
             recentHigh =
                     Math.max(
@@ -258,30 +359,44 @@ public final class SignalEngine {
                     );
         }
 
+        /*
+         * IMPORTANT:
+         *
+         * Use live price for the breakout check.
+         * This means the app can detect a current
+         * price breaking recent structure before
+         * the candle officially closes.
+         */
+
         boolean bullishBreak =
-                current.close > recentHigh;
+                entry > recentHigh;
 
         boolean bearishBreak =
-                current.close < recentLow;
+                entry < recentLow;
 
         /*
          * Higher-high / higher-low structure.
          */
+
         boolean higherHigh =
                 current.high > previous.high
-                        && previous.high > twoBack.high;
+                        && previous.high
+                        > twoBack.high;
 
         boolean higherLow =
                 current.low > previous.low
-                        && previous.low > twoBack.low;
+                        && previous.low
+                        > twoBack.low;
 
         boolean lowerHigh =
                 current.high < previous.high
-                        && previous.high < twoBack.high;
+                        && previous.high
+                        < twoBack.high;
 
         boolean lowerLow =
                 current.low < previous.low
-                        && previous.low < twoBack.low;
+                        && previous.low
+                        < twoBack.low;
 
         boolean bullishStructure =
                 higherHigh
@@ -294,8 +409,9 @@ public final class SignalEngine {
                         || bearishBreak;
 
         /*
-         * Price location relative to both EMAs.
+         * Price position.
          */
+
         boolean priceAboveTrend =
                 entry > ema20
                         && entry > ema50;
@@ -305,16 +421,12 @@ public final class SignalEngine {
                         && entry < ema50;
 
         /*
-         * Detect a meaningful range expansion.
-         *
-         * This is our basic "spike/movement"
-         * detector.
-         *
-         * It does NOT automatically create a trade.
-         * Direction and confirmation are still required.
+         * Volatility expansion.
          */
+
         boolean rangeExpansion =
-                currentRange >= atr * 1.25;
+                currentRange
+                        >= atr * 1.25;
 
         boolean bullishSurge =
                 rangeExpansion
@@ -327,15 +439,43 @@ public final class SignalEngine {
                         && bearishCloseStrength;
 
         /*
-         * Avoid treating a tiny candle as a
-         * meaningful breakout.
+         * Meaningful movement.
          */
+
         boolean meaningfulMovement =
-                currentRange >= atr * 0.60;
+                currentRange
+                        >= atr * 0.60;
 
         /*
-         * BUY score.
+         * Live price distance from the
+         * latest candle close.
+         *
+         * This helps detect a meaningful
+         * intrabar move.
          */
+
+        double liveMove =
+                0;
+
+        if (livePrice > 0) {
+
+            liveMove =
+                    Math.abs(
+                            livePrice
+                                    - latest.close
+                    );
+        }
+
+        boolean livePriceMoving =
+                liveMove
+                        >= atr * 0.15;
+
+        /*
+         * ====================================================
+         * BUY SCORE
+         * ====================================================
+         */
+
         int buyScore = 0;
 
         if (bullishTrend) {
@@ -383,8 +523,23 @@ public final class SignalEngine {
         }
 
         /*
-         * SELL score.
+         * Live movement gives a small additional
+         * confirmation, but cannot create a BUY
+         * by itself.
          */
+
+        if (livePriceMoving
+                && bullishCandle) {
+
+            buyScore += 4;
+        }
+
+        /*
+         * ====================================================
+         * SELL SCORE
+         * ====================================================
+         */
+
         int sellScore = 0;
 
         if (bearishTrend) {
@@ -431,17 +586,27 @@ public final class SignalEngine {
             sellScore += 3;
         }
 
-        /*
-         * Minimum confirmation.
-         *
-         * We still prefer quality over forcing
-         * a signal every few seconds.
-         */
-        final int minimumScore = 70;
+        if (livePriceMoving
+                && bearishCandle) {
+
+            sellScore += 4;
+        }
 
         /*
-         * BUY.
+         * ====================================================
+         * SIGNAL THRESHOLD
+         * ====================================================
          */
+
+        final int minimumScore =
+                70;
+
+        /*
+         * ====================================================
+         * BUY
+         * ====================================================
+         */
+
         if (buyScore >= minimumScore
                 && buyScore > sellScore
                 && bullishTrend
@@ -454,22 +619,24 @@ public final class SignalEngine {
                     );
 
             /*
-             * Wider volatility-aware levels.
-             *
-             * SL is based on ATR.
-             * TP levels expand progressively.
+             * Volatility-aware levels.
              */
+
             double sl =
-                    entry - (3.0 * atr);
+                    entry
+                            - (3.0 * atr);
 
             double tp1 =
-                    entry + (2.0 * atr);
+                    entry
+                            + (2.0 * atr);
 
             double tp2 =
-                    entry + (4.0 * atr);
+                    entry
+                            + (4.0 * atr);
 
             double tp3 =
-                    entry + (6.0 * atr);
+                    entry
+                            + (6.0 * atr);
 
             return new SignalResult(
                     "BUY",
@@ -483,8 +650,11 @@ public final class SignalEngine {
         }
 
         /*
-         * SELL.
+         * ====================================================
+         * SELL
+         * ====================================================
          */
+
         if (sellScore >= minimumScore
                 && sellScore > buyScore
                 && bearishTrend
@@ -497,16 +667,20 @@ public final class SignalEngine {
                     );
 
             double sl =
-                    entry + (3.0 * atr);
+                    entry
+                            + (3.0 * atr);
 
             double tp1 =
-                    entry - (2.0 * atr);
+                    entry
+                            - (2.0 * atr);
 
             double tp2 =
-                    entry - (4.0 * atr);
+                    entry
+                            - (4.0 * atr);
 
             double tp3 =
-                    entry - (6.0 * atr);
+                    entry
+                            - (6.0 * atr);
 
             return new SignalResult(
                     "SELL",
@@ -520,11 +694,11 @@ public final class SignalEngine {
         }
 
         /*
-         * WAIT.
-         *
-         * We deliberately do not manufacture
-         * a signal when the market is unclear.
+         * ====================================================
+         * WAIT
+         * ====================================================
          */
+
         int waitConfidence =
                 Math.max(
                         buyScore,
@@ -549,8 +723,11 @@ public final class SignalEngine {
     }
 
     /*
-     * Exponential Moving Average.
+     * ========================================================
+     * EXPONENTIAL MOVING AVERAGE
+     * ========================================================
      */
+
     private static double ema(
             double[] values,
             int period) {
@@ -581,8 +758,11 @@ public final class SignalEngine {
     }
 
     /*
-     * EMA using candles up to a specific index.
+     * ========================================================
+     * EMA UNTIL INDEX
+     * ========================================================
      */
+
     private static double emaUntil(
             double[] values,
             int lastIndex,
@@ -621,8 +801,11 @@ public final class SignalEngine {
     }
 
     /*
-     * RSI.
+     * ========================================================
+     * RSI
+     * ========================================================
      */
+
     private static double rsi(
             double[] values,
             int period) {
@@ -634,6 +817,7 @@ public final class SignalEngine {
         }
 
         double gains = 0;
+
         double losses = 0;
 
         int start =
@@ -680,8 +864,11 @@ public final class SignalEngine {
     }
 
     /*
-     * Average True Range.
+     * ========================================================
+     * ATR
+     * ========================================================
      */
+
     private static double atr(
             List<Candle> candles,
             int period) {
@@ -695,7 +882,8 @@ public final class SignalEngine {
         int start =
                 Math.max(
                         1,
-                        candles.size() - period
+                        candles.size()
+                                - period
                 );
 
         double total = 0;
@@ -736,6 +924,7 @@ public final class SignalEngine {
         }
 
         if (count == 0) {
+
             return 0;
         }
 
