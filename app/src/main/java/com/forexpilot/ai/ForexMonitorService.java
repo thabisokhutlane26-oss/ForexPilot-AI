@@ -15,12 +15,12 @@ import androidx.core.app.NotificationCompat;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,12 +38,12 @@ public class ForexMonitorService extends Service {
     private static final int FOREGROUND_ID =
             9001;
 
-    private static final int SIGNAL_NOTIFICATION_ID =
-            9002;
-
     private static final long SCAN_INTERVAL_SECONDS =
             60L;
 
+    /*
+     * Markets monitored in the background.
+     */
     private static final String[] SYMBOLS = {
             "XAU/USD",
             "EUR/USD",
@@ -52,13 +52,33 @@ public class ForexMonitorService extends Service {
             "NZD/USD"
     };
 
+    /*
+     * All requested ForexPilot AI timeframes.
+     *
+     * Twelve Data interval names:
+     * 5min
+     * 15min
+     * 30min
+     * 1h
+     * 4h
+     * 1day
+     */
+    private static final String[] INTERVALS = {
+            "5min",
+            "15min",
+            "30min",
+            "1h",
+            "4h",
+            "1day"
+    };
+
     private ScheduledExecutorService scheduler;
 
     private OkHttpClient httpClient;
 
     /*
-     * Prevent the same signal from generating
-     * a notification every minute.
+     * Prevent repeated notifications for the
+     * same symbol + timeframe + signal.
      */
     private final Map<String, String> lastAlertFingerprint =
             new HashMap<>();
@@ -73,7 +93,14 @@ public class ForexMonitorService extends Service {
         Notification notification =
                 buildMonitoringNotification();
 
-        if (Build.VERSION.SDK_INT >= 29) {
+        /*
+         * Android 14+ supports the SPECIAL_USE
+         * foreground-service type.
+         *
+         * Android 13 and below use the normal
+         * two-argument startForeground call.
+         */
+        if (Build.VERSION.SDK_INT >= 34) {
 
             startForeground(
                     FOREGROUND_ID,
@@ -124,62 +151,73 @@ public class ForexMonitorService extends Service {
             return;
         }
 
+        /*
+         * Scan every market on every timeframe.
+         */
         for (String symbol : SYMBOLS) {
 
-            try {
+            for (String interval : INTERVALS) {
 
-                List<Candle> candles =
-                        getCandles(
-                                symbol,
-                                "5min",
-                                apiKey
-                        );
+                try {
 
-                if (candles == null
-                        || candles.isEmpty()) {
+                    List<Candle> candles =
+                            getCandles(
+                                    symbol,
+                                    interval,
+                                    apiKey
+                            );
 
-                    continue;
+                    if (candles == null
+                            || candles.isEmpty()) {
+
+                        continue;
+                    }
+
+                    /*
+                     * Use the newest candle close as
+                     * the current background price.
+                     */
+                    double livePrice =
+                            candles.get(
+                                    candles.size() - 1
+                            ).close;
+
+                    SignalResult result =
+                            SignalEngine.analyze(
+                                    candles,
+                                    livePrice
+                            );
+
+                    if (result == null) {
+                        continue;
+                    }
+
+                    /*
+                     * WAIT does not create a notification.
+                     */
+                    if (!"BUY".equals(result.action)
+                            && !"SELL".equals(result.action)) {
+
+                        continue;
+                    }
+
+                    if (result.entry <= 0) {
+                        continue;
+                    }
+
+                    notifyIfNew(
+                            symbol,
+                            interval,
+                            result
+                    );
+
+                } catch (Exception ignored) {
+
+                    /*
+                     * If one market/timeframe fails,
+                     * continue scanning everything else.
+                     */
                 }
-
-                /*
-                 * The latest available candle close is used
-                 * as the current price for background analysis.
-                 */
-                double livePrice =
-                        candles.get(
-                                candles.size() - 1
-                        ).close;
-
-                SignalResult result =
-                        SignalEngine.analyze(
-                                candles,
-                                livePrice
-                        );
-
-                if (result == null) {
-                    continue;
-                }
-
-                if (!"BUY".equals(result.action)
-                        && !"SELL".equals(result.action)) {
-
-                    continue;
-                }
-
-                if (result.entry <= 0) {
-                    continue;
-                }
-
-                notifyIfNew(
-                        symbol,
-                        result
-                );
-
-            } catch (Exception ignored) {
-                /*
-                 * One failed market must never stop
-                 * the complete background scanner.
-                 */
             }
         }
     }
@@ -225,7 +263,9 @@ public class ForexMonitorService extends Service {
                         .build();
 
         try (Response response =
-                     httpClient.newCall(request).execute()) {
+                     httpClient
+                             .newCall(request)
+                             .execute()) {
 
             if (!response.isSuccessful()
                     || response.body() == null) {
@@ -256,8 +296,12 @@ public class ForexMonitorService extends Service {
                     new ArrayList<>();
 
             /*
-             * Twelve Data normally returns newest first.
-             * Reverse into oldest -> newest.
+             * Twelve Data normally returns newest
+             * candle first.
+             *
+             * Reverse it so SignalEngine receives:
+             *
+             * oldest -> newest
              */
             for (int i = values.length() - 1;
                  i >= 0;
@@ -314,17 +358,39 @@ public class ForexMonitorService extends Service {
 
     private void notifyIfNew(
             String symbol,
+            String interval,
             SignalResult result) {
 
         String fingerprint =
                 buildFingerprint(
                         symbol,
+                        interval,
                         result
                 );
 
+        /*
+         * IMPORTANT:
+         *
+         * The key includes the timeframe.
+         *
+         * Therefore:
+         *
+         * XAU/USD 5M SELL
+         *
+         * and
+         *
+         * XAU/USD 1H SELL
+         *
+         * are treated as different signals.
+         */
+        String alertKey =
+                symbol
+                        + "|"
+                        + interval;
+
         String previous =
                 lastAlertFingerprint.get(
-                        symbol
+                        alertKey
                 );
 
         if (fingerprint.equals(previous)) {
@@ -332,22 +398,26 @@ public class ForexMonitorService extends Service {
         }
 
         lastAlertFingerprint.put(
-                symbol,
+                alertKey,
                 fingerprint
         );
 
         sendSignalNotification(
                 symbol,
+                interval,
                 result
         );
     }
 
     private String buildFingerprint(
             String symbol,
+            String interval,
             SignalResult result) {
 
         return symbol
-                + "|5min|"
+                + "|"
+                + interval
+                + "|"
                 + result.action
                 + "|"
                 + formatNumber(result.entry)
@@ -361,14 +431,60 @@ public class ForexMonitorService extends Service {
             double value) {
 
         return String.format(
-                java.util.Locale.US,
+                Locale.US,
                 "%.5f",
                 value
         );
     }
 
+    private String displayTimeframe(
+            String interval) {
+
+        if ("5min".equals(interval)) {
+            return "5M";
+        }
+
+        if ("15min".equals(interval)) {
+            return "15M";
+        }
+
+        if ("30min".equals(interval)) {
+            return "30M";
+        }
+
+        if ("1h".equals(interval)) {
+            return "1H";
+        }
+
+        if ("4h".equals(interval)) {
+            return "4H";
+        }
+
+        if ("1day".equals(interval)) {
+            return "1D";
+        }
+
+        return interval;
+    }
+
+    private int notificationId(
+            String symbol,
+            String interval) {
+
+        /*
+         * Different IDs prevent a new timeframe
+         * signal from replacing another timeframe's
+         * notification.
+         */
+        return Math.abs(
+                (symbol + "|" + interval)
+                        .hashCode()
+        ) + 10000;
+    }
+
     private void sendSignalNotification(
             String symbol,
+            String interval,
             SignalResult result) {
 
         NotificationManager manager =
@@ -397,10 +513,18 @@ public class ForexMonitorService extends Service {
                 symbol
         );
 
+        intent.putExtra(
+                "notification_timeframe",
+                displayTimeframe(interval)
+        );
+
         PendingIntent pendingIntent =
                 PendingIntent.getActivity(
                         this,
-                        symbol.hashCode(),
+                        notificationId(
+                                symbol,
+                                interval
+                        ),
                         intent,
                         PendingIntent.FLAG_UPDATE_CURRENT
                                 | PendingIntent.FLAG_IMMUTABLE
@@ -409,33 +533,50 @@ public class ForexMonitorService extends Service {
         boolean buy =
                 "BUY".equals(result.action);
 
+        String timeframe =
+                displayTimeframe(interval);
+
         String title =
                 "ForexPilot AI • "
                         + result.action;
 
         String message =
                 symbol
-                        + " • 5M\n"
+                        + " • "
+                        + timeframe
+                        + "\n"
                         + "Confidence: "
                         + result.confidence
                         + "%\n"
                         + "Entry: "
                         + formatPrice(
-                        symbol,
-                        result.entry
-                )
+                                symbol,
+                                result.entry
+                        )
                         + "\n"
                         + "SL: "
                         + formatPrice(
-                        symbol,
-                        result.sl
-                )
+                                symbol,
+                                result.sl
+                        )
                         + "\n"
                         + "TP1: "
                         + formatPrice(
-                        symbol,
-                        result.tp1
-                );
+                                symbol,
+                                result.tp1
+                        )
+                        + "\n"
+                        + "TP2: "
+                        + formatPrice(
+                                symbol,
+                                result.tp2
+                        )
+                        + "\n"
+                        + "TP3: "
+                        + formatPrice(
+                                symbol,
+                                result.tp3
+                        );
 
         Notification notification =
                 new NotificationCompat.Builder(
@@ -451,6 +592,8 @@ public class ForexMonitorService extends Service {
                         )
                         .setContentText(
                                 symbol
+                                        + " • "
+                                        + timeframe
                                         + " • "
                                         + result.confidence
                                         + "% • "
@@ -484,7 +627,10 @@ public class ForexMonitorService extends Service {
                         .build();
 
         manager.notify(
-                SIGNAL_NOTIFICATION_ID,
+                notificationId(
+                        symbol,
+                        interval
+                ),
                 notification
         );
     }
@@ -500,7 +646,7 @@ public class ForexMonitorService extends Service {
         if ("USD/JPY".equals(symbol)) {
 
             return String.format(
-                    java.util.Locale.US,
+                    Locale.US,
                     "%.3f",
                     value
             );
@@ -509,14 +655,14 @@ public class ForexMonitorService extends Service {
         if ("XAU/USD".equals(symbol)) {
 
             return String.format(
-                    java.util.Locale.US,
+                    Locale.US,
                     "%.2f",
                     value
             );
         }
 
         return String.format(
-                java.util.Locale.US,
+                Locale.US,
                 "%.5f",
                 value
         );
@@ -551,7 +697,7 @@ public class ForexMonitorService extends Service {
                         "ForexPilot AI"
                 )
                 .setContentText(
-                        "Background market monitoring active"
+                        "Multi-timeframe background monitoring active"
                 )
                 .setContentIntent(
                         pendingIntent
@@ -637,8 +783,7 @@ public class ForexMonitorService extends Service {
     }
 
     /*
-     * Android 15+ calls this for foreground-service
-     * timeout handling when applicable.
+     * Android foreground-service timeout callback.
      */
     @Override
     public void onTimeout(
