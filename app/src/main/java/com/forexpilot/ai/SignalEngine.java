@@ -10,7 +10,8 @@ public final class SignalEngine {
     public static SignalResult analyze(
             List<Candle> candles) {
 
-        if (candles == null || candles.size() < 60) {
+        if (candles == null
+                || candles.size() < 60) {
 
             return new SignalResult(
                     "WAIT",
@@ -23,31 +24,21 @@ public final class SignalEngine {
             );
         }
 
-        double[] closes =
-                new double[candles.size()];
+        int size = candles.size();
 
-        for (int i = 0; i < candles.size(); i++) {
+        double[] closes =
+                new double[size];
+
+        for (int i = 0; i < size; i++) {
 
             closes[i] =
                     candles.get(i).close;
         }
 
-        double ema20 =
-                ema(closes, 20);
-
-        double ema50 =
-                ema(closes, 50);
-
-        double rsi =
-                rsi(closes, 14);
-
-        double atr =
-                atr(candles, 14);
-
         double entry =
-                closes[closes.length - 1];
+                closes[size - 1];
 
-        if (atr <= 0 || entry <= 0) {
+        if (entry <= 0) {
 
             return new SignalResult(
                     "WAIT",
@@ -61,59 +52,64 @@ public final class SignalEngine {
         }
 
         /*
-         * ====================================================
-         * 1. TREND CONFIRMATION
-         * ====================================================
+         * Core indicators.
          */
+        double ema20 =
+                ema(closes, 20);
 
-        boolean bullishTrend =
-                ema20 > ema50;
+        double ema50 =
+                ema(closes, 50);
 
-        boolean bearishTrend =
-                ema20 < ema50;
-
-
-        /*
-         * ====================================================
-         * 2. RSI MOMENTUM CONFIRMATION
-         * ====================================================
-         */
-
-        boolean bullishMomentum =
-                rsi >= 52 && rsi < 70;
-
-        boolean bearishMomentum =
-                rsi <= 48 && rsi > 30;
-
-
-        /*
-         * ====================================================
-         * 3. CANDLE CONFIRMATION
-         * ====================================================
-         */
-
-        Candle current =
-                candles.get(
-                        candles.size() - 1
+        double previousEma20 =
+                emaUntil(
+                        closes,
+                        size - 2,
+                        20
                 );
+
+        double previousEma50 =
+                emaUntil(
+                        closes,
+                        size - 2,
+                        50
+                );
+
+        double rsi =
+                rsi(closes, 14);
+
+        double atr =
+                atr(candles, 14);
+
+        if (atr <= 0) {
+
+            return new SignalResult(
+                    "WAIT",
+                    entry,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+            );
+        }
+
+        /*
+         * Current and previous candles.
+         */
+        Candle current =
+                candles.get(size - 1);
 
         Candle previous =
-                candles.get(
-                        candles.size() - 2
+                candles.get(size - 2);
+
+        Candle twoBack =
+                candles.get(size - 3);
+
+        double currentRange =
+                Math.max(
+                        0,
+                        current.high - current.low
                 );
-
-        boolean bullishCandle =
-                current.close > current.open;
-
-        boolean bearishCandle =
-                current.close < current.open;
-
-
-        /*
-         * ====================================================
-         * 4. CANDLE STRENGTH
-         * ====================================================
-         */
 
         double currentBody =
                 Math.abs(
@@ -121,54 +117,185 @@ public final class SignalEngine {
                                 - current.open
                 );
 
-        double currentRange =
-                current.high
-                        - current.low;
+        double previousRange =
+                Math.max(
+                        0,
+                        previous.high - previous.low
+                );
 
+        /*
+         * Candle direction.
+         */
+        boolean bullishCandle =
+                current.close > current.open;
+
+        boolean bearishCandle =
+                current.close < current.open;
+
+        /*
+         * Strong candle confirmation.
+         */
         boolean strongBullishCandle =
                 bullishCandle
                         && currentRange > 0
                         && currentBody
-                        >= currentRange * 0.45;
+                        >= currentRange * 0.50;
 
         boolean strongBearishCandle =
                 bearishCandle
                         && currentRange > 0
                         && currentBody
-                        >= currentRange * 0.45;
-
+                        >= currentRange * 0.50;
 
         /*
-         * ====================================================
-         * 5. MARKET STRUCTURE
-         * ====================================================
+         * Close location inside the candle.
+         *
+         * A bullish candle closing near its high
+         * is stronger.
+         *
+         * A bearish candle closing near its low
+         * is stronger.
          */
+        double closeLocation = 0.5;
 
+        if (currentRange > 0) {
+
+            closeLocation =
+                    (current.close
+                            - current.low)
+                            / currentRange;
+        }
+
+        boolean bullishCloseStrength =
+                closeLocation >= 0.70;
+
+        boolean bearishCloseStrength =
+                closeLocation <= 0.30;
+
+        /*
+         * Trend direction.
+         */
+        boolean bullishTrend =
+                ema20 > ema50;
+
+        boolean bearishTrend =
+                ema20 < ema50;
+
+        /*
+         * EMA slope.
+         */
+        boolean ema20Rising =
+                ema20 > previousEma20;
+
+        boolean ema20Falling =
+                ema20 < previousEma20;
+
+        boolean ema50Rising =
+                ema50 > previousEma50;
+
+        boolean ema50Falling =
+                ema50 < previousEma50;
+
+        boolean bullishSlope =
+                ema20Rising
+                        && ema50Rising;
+
+        boolean bearishSlope =
+                ema20Falling
+                        && ema50Falling;
+
+        /*
+         * Momentum.
+         *
+         * We avoid buying when RSI is already
+         * extremely overbought and avoid selling
+         * when RSI is extremely oversold.
+         */
+        boolean bullishMomentum =
+                rsi >= 52
+                        && rsi <= 68;
+
+        boolean bearishMomentum =
+                rsi <= 48
+                        && rsi >= 32;
+
+        /*
+         * Recent market structure.
+         *
+         * We examine several candles instead of
+         * comparing only the latest candle with
+         * the previous candle.
+         */
+        int structureStart =
+                Math.max(
+                        0,
+                        size - 6
+                );
+
+        double recentHigh =
+                Double.MIN_VALUE;
+
+        double recentLow =
+                Double.MAX_VALUE;
+
+        for (int i = structureStart;
+             i < size - 1;
+             i++) {
+
+            Candle candle =
+                    candles.get(i);
+
+            recentHigh =
+                    Math.max(
+                            recentHigh,
+                            candle.high
+                    );
+
+            recentLow =
+                    Math.min(
+                            recentLow,
+                            candle.low
+                    );
+        }
+
+        boolean bullishBreak =
+                current.close > recentHigh;
+
+        boolean bearishBreak =
+                current.close < recentLow;
+
+        /*
+         * Higher-high / higher-low structure.
+         */
         boolean higherHigh =
-                current.high > previous.high;
+                current.high > previous.high
+                        && previous.high > twoBack.high;
 
         boolean higherLow =
-                current.low > previous.low;
+                current.low > previous.low
+                        && previous.low > twoBack.low;
 
         boolean lowerHigh =
-                current.high < previous.high;
+                current.high < previous.high
+                        && previous.high < twoBack.high;
 
         boolean lowerLow =
-                current.low < previous.low;
+                current.low < previous.low
+                        && previous.low < twoBack.low;
 
         boolean bullishStructure =
-                higherHigh && higherLow;
+                higherHigh
+                        || higherLow
+                        || bullishBreak;
 
         boolean bearishStructure =
-                lowerHigh && lowerLow;
-
+                lowerHigh
+                        || lowerLow
+                        || bearishBreak;
 
         /*
-         * ====================================================
-         * 6. PRICE LOCATION
-         * ====================================================
+         * Price location relative to both EMAs.
          */
-
         boolean priceAboveTrend =
                 entry > ema20
                         && entry > ema50;
@@ -177,90 +304,148 @@ public final class SignalEngine {
                 entry < ema20
                         && entry < ema50;
 
+        /*
+         * Detect a meaningful range expansion.
+         *
+         * This is our basic "spike/movement"
+         * detector.
+         *
+         * It does NOT automatically create a trade.
+         * Direction and confirmation are still required.
+         */
+        boolean rangeExpansion =
+                currentRange >= atr * 1.25;
+
+        boolean bullishSurge =
+                rangeExpansion
+                        && bullishCandle
+                        && bullishCloseStrength;
+
+        boolean bearishSurge =
+                rangeExpansion
+                        && bearishCandle
+                        && bearishCloseStrength;
 
         /*
-         * ====================================================
-         * 7. BUY SCORE
-         * ====================================================
+         * Avoid treating a tiny candle as a
+         * meaningful breakout.
          */
+        boolean meaningfulMovement =
+                currentRange >= atr * 0.60;
 
+        /*
+         * BUY score.
+         */
         int buyScore = 0;
 
         if (bullishTrend) {
-            buyScore += 20;
+            buyScore += 18;
+        }
+
+        if (bullishSlope) {
+            buyScore += 12;
         }
 
         if (bullishMomentum) {
-            buyScore += 20;
+            buyScore += 15;
         }
 
         if (bullishCandle) {
-            buyScore += 10;
+            buyScore += 8;
         }
 
         if (strongBullishCandle) {
-            buyScore += 10;
+            buyScore += 8;
+        }
+
+        if (bullishCloseStrength) {
+            buyScore += 6;
         }
 
         if (bullishStructure) {
-            buyScore += 15;
+            buyScore += 12;
+        }
+
+        if (bullishBreak) {
+            buyScore += 10;
         }
 
         if (priceAboveTrend) {
-            buyScore += 15;
+            buyScore += 8;
         }
 
+        if (bullishSurge) {
+            buyScore += 8;
+        }
+
+        if (meaningfulMovement) {
+            buyScore += 3;
+        }
 
         /*
-         * ====================================================
-         * 8. SELL SCORE
-         * ====================================================
+         * SELL score.
          */
-
         int sellScore = 0;
 
         if (bearishTrend) {
-            sellScore += 20;
+            sellScore += 18;
+        }
+
+        if (bearishSlope) {
+            sellScore += 12;
         }
 
         if (bearishMomentum) {
-            sellScore += 20;
+            sellScore += 15;
         }
 
         if (bearishCandle) {
-            sellScore += 10;
+            sellScore += 8;
         }
 
         if (strongBearishCandle) {
-            sellScore += 10;
+            sellScore += 8;
+        }
+
+        if (bearishCloseStrength) {
+            sellScore += 6;
         }
 
         if (bearishStructure) {
-            sellScore += 15;
+            sellScore += 12;
+        }
+
+        if (bearishBreak) {
+            sellScore += 10;
         }
 
         if (priceBelowTrend) {
-            sellScore += 15;
+            sellScore += 8;
         }
 
+        if (bearishSurge) {
+            sellScore += 8;
+        }
+
+        if (meaningfulMovement) {
+            sellScore += 3;
+        }
 
         /*
-         * ====================================================
-         * 9. MINIMUM CONFIRMATION
-         * ====================================================
+         * Minimum confirmation.
+         *
+         * We still prefer quality over forcing
+         * a signal every few seconds.
          */
-
-        final int minimumScore = 65;
-
+        final int minimumScore = 70;
 
         /*
-         * ====================================================
-         * 10. BUY SIGNAL
-         * ====================================================
+         * BUY.
          */
-
         if (buyScore >= minimumScore
-                && buyScore > sellScore) {
+                && buyScore > sellScore
+                && bullishTrend
+                && priceAboveTrend) {
 
             int confidence =
                     Math.min(
@@ -268,18 +453,12 @@ public final class SignalEngine {
                             buyScore
                     );
 
-
             /*
-             * =================================================
-             * WIDER BUY TRADE LEVELS
+             * Wider volatility-aware levels.
              *
-             * SL  = 3.0 ATR
-             * TP1 = 2.0 ATR
-             * TP2 = 4.0 ATR
-             * TP3 = 6.0 ATR
-             * =================================================
+             * SL is based on ATR.
+             * TP levels expand progressively.
              */
-
             double sl =
                     entry - (3.0 * atr);
 
@@ -292,7 +471,6 @@ public final class SignalEngine {
             double tp3 =
                     entry + (6.0 * atr);
 
-
             return new SignalResult(
                     "BUY",
                     entry,
@@ -304,33 +482,19 @@ public final class SignalEngine {
             );
         }
 
-
         /*
-         * ====================================================
-         * 11. SELL SIGNAL
-         * ====================================================
+         * SELL.
          */
-
         if (sellScore >= minimumScore
-                && sellScore > buyScore) {
+                && sellScore > buyScore
+                && bearishTrend
+                && priceBelowTrend) {
 
             int confidence =
                     Math.min(
                             95,
                             sellScore
                     );
-
-
-            /*
-             * =================================================
-             * WIDER SELL TRADE LEVELS
-             *
-             * SL  = 3.0 ATR
-             * TP1 = 2.0 ATR
-             * TP2 = 4.0 ATR
-             * TP3 = 6.0 ATR
-             * =================================================
-             */
 
             double sl =
                     entry + (3.0 * atr);
@@ -344,7 +508,6 @@ public final class SignalEngine {
             double tp3 =
                     entry - (6.0 * atr);
 
-
             return new SignalResult(
                     "SELL",
                     entry,
@@ -356,13 +519,12 @@ public final class SignalEngine {
             );
         }
 
-
         /*
-         * ====================================================
-         * 12. WAIT
-         * ====================================================
+         * WAIT.
+         *
+         * We deliberately do not manufacture
+         * a signal when the market is unclear.
          */
-
         int waitConfidence =
                 Math.max(
                         buyScore,
@@ -371,10 +533,9 @@ public final class SignalEngine {
 
         waitConfidence =
                 Math.min(
-                        64,
+                        69,
                         waitConfidence
                 );
-
 
         return new SignalResult(
                 "WAIT",
@@ -387,13 +548,9 @@ public final class SignalEngine {
         );
     }
 
-
     /*
-     * ========================================================
-     * EMA
-     * ========================================================
+     * Exponential Moving Average.
      */
-
     private static double ema(
             double[] values,
             int period) {
@@ -407,28 +564,65 @@ public final class SignalEngine {
         double multiplier =
                 2.0 / (period + 1);
 
-        double ema =
+        double result =
                 values[0];
 
         for (int i = 1;
              i < values.length;
              i++) {
 
-            ema =
+            result =
                     values[i] * multiplier
-                            + ema * (1 - multiplier);
+                            + result
+                            * (1 - multiplier);
         }
 
-        return ema;
+        return result;
     }
 
+    /*
+     * EMA using candles up to a specific index.
+     */
+    private static double emaUntil(
+            double[] values,
+            int lastIndex,
+            int period) {
+
+        if (values == null
+                || values.length == 0
+                || lastIndex < 0) {
+
+            return 0;
+        }
+
+        int end =
+                Math.min(
+                        lastIndex,
+                        values.length - 1
+                );
+
+        double multiplier =
+                2.0 / (period + 1);
+
+        double result =
+                values[0];
+
+        for (int i = 1;
+             i <= end;
+             i++) {
+
+            result =
+                    values[i] * multiplier
+                            + result
+                            * (1 - multiplier);
+        }
+
+        return result;
+    }
 
     /*
-     * ========================================================
-     * RSI
-     * ========================================================
+     * RSI.
      */
-
     private static double rsi(
             double[] values,
             int period) {
@@ -485,13 +679,9 @@ public final class SignalEngine {
         );
     }
 
-
     /*
-     * ========================================================
-     * ATR
-     * ========================================================
+     * Average True Range.
      */
-
     private static double atr(
             List<Candle> candles,
             int period) {
