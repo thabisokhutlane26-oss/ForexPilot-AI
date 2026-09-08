@@ -54,18 +54,13 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    /*
-     * Live market connections.
-     */
     private final Map<String, TwelveDataClient> clients =
             new LinkedHashMap<>();
 
     /*
      * CURRENT MARKET SIGNAL.
      *
-     * This is deliberately separate from active trades.
-     *
-     * It follows the latest market structure.
+     * This follows the latest live market structure.
      */
     private final Map<String, SignalResult> results =
             new LinkedHashMap<>();
@@ -73,26 +68,25 @@ public class MainActivity extends AppCompatActivity {
     /*
      * ACTIVE TRADES.
      *
-     * Existing trades continue being monitored even
-     * when the CURRENT MARKET SIGNAL changes.
+     * Existing trades continue being monitored separately.
      */
     private final Map<String, SignalResult> activeTrades =
             new LinkedHashMap<>();
 
     /*
-     * Live prices.
+     * Latest live prices received from Twelve Data.
      */
     private final Map<String, Double> prices =
             new LinkedHashMap<>();
 
     /*
-     * Candle data used by the chart and signal engine.
+     * Candle data used by chart and signal engine.
      */
     private final Map<String, List<Candle>> candleData =
             new LinkedHashMap<>();
 
     /*
-     * Prevents unnecessary BUY -> SELL or SELL -> BUY
+     * Prevent unnecessary BUY -> SELL or SELL -> BUY
      * flipping without a WAIT transition.
      */
     private final Map<String, String> lastMarketDirection =
@@ -240,9 +234,6 @@ public class MainActivity extends AppCompatActivity {
 
         startScanner(apiKey);
 
-        /*
-         * Update market open/closed status.
-         */
         handler.postDelayed(
                 new Runnable() {
 
@@ -260,9 +251,6 @@ public class MainActivity extends AppCompatActivity {
                 30000L
         );
 
-        /*
-         * Automatic candle refresh.
-         */
         handler.postDelayed(
                 new Runnable() {
 
@@ -533,9 +521,6 @@ public class MainActivity extends AppCompatActivity {
 
         axis.removeAllLimitLines();
 
-        /*
-         * Prefer CURRENT MARKET SIGNAL for the chart.
-         */
         SignalResult result =
                 results.get(symbol);
 
@@ -646,12 +631,10 @@ public class MainActivity extends AppCompatActivity {
     private String getChartSymbol() {
 
         if (!"ALL".equals(selectedMarket)) {
-
             return selectedMarket;
         }
 
         if (bestSymbol != null) {
-
             return bestSymbol;
         }
 
@@ -727,18 +710,10 @@ public class MainActivity extends AppCompatActivity {
                 );
             }
 
-            /*
-             * Current market signal starts at WAIT.
-             *
-             * IMPORTANT:
-             * The old active trade does NOT become the
-             * current market signal.
-             */
             results.put(
                     symbol,
                     new SignalResult(
                             "WAIT",
-                            0,
                             0,
                             0,
                             0,
@@ -922,19 +897,12 @@ public class MainActivity extends AppCompatActivity {
         selectedTimeframe =
                 interval;
 
-        /*
-         * Clear CURRENT market signals for the new
-         * timeframe.
-         *
-         * Existing active trades remain untouched.
-         */
         for (String symbol : SYMBOLS) {
 
             results.put(
                     symbol,
                     new SignalResult(
                             "WAIT",
-                            0,
                             0,
                             0,
                             0,
@@ -1033,7 +1001,6 @@ public class MainActivity extends AppCompatActivity {
                         symbol,
                         new SignalResult(
                                 "WAIT",
-                                0,
                                 0,
                                 0,
                                 0,
@@ -1222,9 +1189,6 @@ public class MainActivity extends AppCompatActivity {
                     )
                     .append("%\n");
 
-            /*
-             * Show active trade separately.
-             */
             SignalResult active =
                     activeTrades.get(symbol);
 
@@ -1365,10 +1329,6 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             }
 
-            /*
-             * BEST SIGNAL uses CURRENT market signal,
-             * not an old active trade.
-             */
             if ("WAIT".equals(result.action)) {
                 continue;
             }
@@ -1732,10 +1692,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * TP1 / TP2:
-         * Still an active trade.
-         */
         if ("TP1 HIT".equals(newStatus)
                 || "TP2 HIT".equals(newStatus)) {
 
@@ -1749,9 +1705,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * Completed trade.
-         */
         if ("WIN".equals(newStatus)) {
 
             wins++;
@@ -1791,9 +1744,6 @@ public class MainActivity extends AppCompatActivity {
                 symbol
         );
 
-        /*
-         * Save the final outcome permanently.
-         */
         signalStorage.saveSignal(
                 symbol,
                 trade
@@ -1803,9 +1753,6 @@ public class MainActivity extends AppCompatActivity {
                 symbol
         );
 
-        /*
-         * Add a readable history entry.
-         */
         signalHistory.add(
                 0,
                 buildHistoryText(
@@ -1845,20 +1792,11 @@ public class MainActivity extends AppCompatActivity {
                         : "WAIT";
 
         if (previousDirection == null) {
-
-            previousDirection =
-                    "WAIT";
+            previousDirection = "WAIT";
         }
 
-        /*
-         * No signal.
-         */
         if ("WAIT".equals(newDirection)) {
 
-            /*
-             * If the engine itself says WAIT,
-             * the current market signal follows it.
-             */
             results.put(
                     symbol,
                     analyzed
@@ -1867,9 +1805,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * First confirmed signal.
-         */
         if ("WAIT".equals(previousDirection)) {
 
             createNewMarketSignal(
@@ -1880,15 +1815,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * Same direction:
-         *
-         * Keep following that market direction.
-         *
-         * This prevents duplicate signals on every
-         * refresh while the market is still moving
-         * in the same direction.
-         */
         if (previousDirection.equals(
                 newDirection
         )) {
@@ -1906,14 +1832,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * Opposite direction detected.
-         *
-         * DO NOT immediately flip BUY -> SELL or
-         * SELL -> BUY.
-         *
-         * First transition through WAIT.
-         */
         boolean waiting =
                 reversalWaiting.containsKey(symbol)
                         && Boolean.TRUE.equals(
@@ -1926,7 +1844,6 @@ public class MainActivity extends AppCompatActivity {
                     new SignalResult(
                             "WAIT",
                             analyzed.entry,
-                            0,
                             0,
                             0,
                             0,
@@ -1946,12 +1863,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * Opposite direction has now survived a WAIT
-         * transition.
-         *
-         * Accept the new signal.
-         */
         createNewMarketSignal(
                 symbol,
                 analyzed
@@ -1967,9 +1878,6 @@ public class MainActivity extends AppCompatActivity {
             String symbol,
             SignalResult signal) {
 
-        /*
-         * Store as the CURRENT market signal.
-         */
         results.put(
                 symbol,
                 signal
@@ -1980,24 +1888,11 @@ public class MainActivity extends AppCompatActivity {
                 signal.action
         );
 
-        /*
-         * Save the new signal to permanent history
-         * immediately.
-         *
-         * This means today's signals are not dependent
-         * on whether the trade later wins or loses.
-         */
         signalStorage.saveSignal(
                 symbol,
                 signal
         );
 
-        /*
-         * Keep monitoring this signal as an active trade.
-         *
-         * IMPORTANT:
-         * This does not replace the current signal later.
-         */
         activeTrades.put(
                 symbol,
                 signal
@@ -2271,8 +2166,8 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 /*
-                 * Monitor EXISTING trade independently
-                 * from the CURRENT market signal.
+                 * Existing active trades are monitored
+                 * using the live Twelve Data price.
                  */
                 checkActiveTrade(
                         symbol,
@@ -2281,9 +2176,6 @@ public class MainActivity extends AppCompatActivity {
 
                 updateScanner();
 
-                /*
-                 * Update chart levels from current signal.
-                 */
                 updateChart();
 
                 updated.setText(
@@ -2310,9 +2202,42 @@ public class MainActivity extends AppCompatActivity {
                             candles
                     );
 
+            /*
+             * =================================================
+             * IMPORTANT LIVE PRICE CONNECTION
+             * =================================================
+             *
+             * Get the latest real-time price received from
+             * Twelve Data.
+             *
+             * The SignalEngine now uses this live price
+             * together with the candle data.
+             */
+            TwelveDataClient liveClient =
+                    clients.get(symbol);
+
+            double livePrice = 0;
+
+            if (liveClient != null) {
+
+                livePrice =
+                        liveClient.getLatestPrice();
+            }
+
+            /*
+             * Analyze using BOTH:
+             *
+             * 1. Latest candle history
+             * 2. Current live market price
+             *
+             * This allows ForexPilot AI to react to current
+             * price movement instead of relying only on the
+             * last completed candle.
+             */
             SignalResult analyzed =
                     SignalEngine.analyze(
-                            candles
+                            candles,
+                            livePrice
                     );
 
             runOnUiThread(() -> {
@@ -2323,16 +2248,8 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 /*
-                 * IMPORTANT:
-                 *
-                 * Always analyze the newest candles.
-                 *
-                 * We no longer say:
-                 *
-                 * "Never overwrite an active signal."
-                 *
-                 * The CURRENT SIGNAL is allowed to change
-                 * as market structure changes.
+                 * The CURRENT market signal is allowed to
+                 * change as live market structure changes.
                  */
                 processCurrentSignal(
                         symbol,
