@@ -1,9 +1,13 @@
 package com.forexpilot.ai;
 
+import android.Manifest;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -12,6 +16,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import com.github.mikephil.charting.charts.CandleStickChart;
 import com.github.mikephil.charting.components.Description;
@@ -57,47 +62,24 @@ public class MainActivity extends AppCompatActivity {
     private final Map<String, TwelveDataClient> clients =
             new LinkedHashMap<>();
 
-    /*
-     * CURRENT MARKET SIGNAL.
-     *
-     * This follows the latest live market structure.
-     */
     private final Map<String, SignalResult> results =
             new LinkedHashMap<>();
 
-    /*
-     * ACTIVE TRADES.
-     *
-     * Existing trades continue being monitored separately.
-     */
     private final Map<String, SignalResult> activeTrades =
             new LinkedHashMap<>();
 
-    /*
-     * Latest live prices received from Twelve Data.
-     */
     private final Map<String, Double> prices =
             new LinkedHashMap<>();
 
-    /*
-     * Candle data used by chart and signal engine.
-     */
     private final Map<String, List<Candle>> candleData =
             new LinkedHashMap<>();
 
-    /*
-     * Prevent unnecessary BUY -> SELL or SELL -> BUY
-     * flipping without a WAIT transition.
-     */
     private final Map<String, String> lastMarketDirection =
             new LinkedHashMap<>();
 
     private final Map<String, Boolean> reversalWaiting =
             new LinkedHashMap<>();
 
-    /*
-     * History displayed by the activity.
-     */
     private final List<String> signalHistory =
             new ArrayList<>();
 
@@ -119,6 +101,9 @@ public class MainActivity extends AppCompatActivity {
 
     private static final long REFRESH_INTERVAL =
             5 * 60 * 1000L;
+
+    private static final int
+            NOTIFICATION_PERMISSION_REQUEST = 1001;
 
     private int wins = 0;
     private int losses = 0;
@@ -232,6 +217,20 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        /*
+         * ====================================================
+         * BACKGROUND FOREX MONITOR
+         * ====================================================
+         *
+         * Start the foreground service while the Activity
+         * is visible. This allows ForexPilot AI to continue
+         * monitoring when the app is minimized or the screen
+         * is locked.
+         */
+        requestNotificationPermissionIfNeeded();
+
+        startBackgroundMonitor();
+
         startScanner(apiKey);
 
         handler.postDelayed(
@@ -267,6 +266,56 @@ public class MainActivity extends AppCompatActivity {
                 },
                 REFRESH_INTERVAL
         );
+    }
+
+    /*
+     * ========================================================
+     * BACKGROUND MONITOR
+     * ========================================================
+     */
+
+    private void requestNotificationPermissionIfNeeded() {
+
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.TIRAMISU) {
+
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED) {
+
+                requestPermissions(
+                        new String[]{
+                                Manifest.permission.POST_NOTIFICATIONS
+                        },
+                        NOTIFICATION_PERMISSION_REQUEST
+                );
+            }
+        }
+    }
+
+    private void startBackgroundMonitor() {
+
+        Intent serviceIntent =
+                new Intent(
+                        this,
+                        ForexMonitorService.class
+                );
+
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O) {
+
+            ContextCompat.startForegroundService(
+                    this,
+                    serviceIntent
+            );
+
+        } else {
+
+            startService(
+                    serviceIntent
+            );
+        }
     }
 
     /*
@@ -2169,10 +2218,6 @@ public class MainActivity extends AppCompatActivity {
                         price
                 );
 
-                /*
-                 * Existing active trades are monitored
-                 * using the live Twelve Data price.
-                 */
                 checkActiveTrade(
                         symbol,
                         price
@@ -2206,17 +2251,6 @@ public class MainActivity extends AppCompatActivity {
                             candles
                     );
 
-            /*
-             * =================================================
-             * IMPORTANT LIVE PRICE CONNECTION
-             * =================================================
-             *
-             * Get the latest real-time price received from
-             * Twelve Data.
-             *
-             * The SignalEngine now uses this live price
-             * together with the candle data.
-             */
             TwelveDataClient liveClient =
                     clients.get(symbol);
 
@@ -2228,16 +2262,6 @@ public class MainActivity extends AppCompatActivity {
                         liveClient.getLatestPrice();
             }
 
-            /*
-             * Analyze using BOTH:
-             *
-             * 1. Latest candle history
-             * 2. Current live market price
-             *
-             * This allows ForexPilot AI to react to current
-             * price movement instead of relying only on the
-             * last completed candle.
-             */
             SignalResult analyzed =
                     SignalEngine.analyze(
                             candles,
@@ -2251,10 +2275,6 @@ public class MainActivity extends AppCompatActivity {
                         copy
                 );
 
-                /*
-                 * The CURRENT market signal is allowed to
-                 * change as live market structure changes.
-                 */
                 processCurrentSignal(
                         symbol,
                         analyzed
