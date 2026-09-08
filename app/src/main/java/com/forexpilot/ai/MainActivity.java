@@ -718,6 +718,7 @@ public class MainActivity extends AppCompatActivity {
                             0,
                             0,
                             0,
+                            0,
                             0
                     )
             );
@@ -907,6 +908,7 @@ public class MainActivity extends AppCompatActivity {
                             0,
                             0,
                             0,
+                            0,
                             0
                     )
             );
@@ -1001,6 +1003,7 @@ public class MainActivity extends AppCompatActivity {
                         symbol,
                         new SignalResult(
                                 "WAIT",
+                                0,
                                 0,
                                 0,
                                 0,
@@ -1844,6 +1847,7 @@ public class MainActivity extends AppCompatActivity {
                     new SignalResult(
                             "WAIT",
                             analyzed.entry,
+                            0,
                             0,
                             0,
                             0,
