@@ -54,18 +54,56 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
+    /*
+     * Live market connections.
+     */
     private final Map<String, TwelveDataClient> clients =
             new LinkedHashMap<>();
 
+    /*
+     * CURRENT MARKET SIGNAL.
+     *
+     * This is deliberately separate from active trades.
+     *
+     * It follows the latest market structure.
+     */
     private final Map<String, SignalResult> results =
             new LinkedHashMap<>();
 
+    /*
+     * ACTIVE TRADES.
+     *
+     * Existing trades continue being monitored even
+     * when the CURRENT MARKET SIGNAL changes.
+     */
+    private final Map<String, SignalResult> activeTrades =
+            new LinkedHashMap<>();
+
+    /*
+     * Live prices.
+     */
     private final Map<String, Double> prices =
             new LinkedHashMap<>();
 
+    /*
+     * Candle data used by the chart and signal engine.
+     */
     private final Map<String, List<Candle>> candleData =
             new LinkedHashMap<>();
 
+    /*
+     * Prevents unnecessary BUY -> SELL or SELL -> BUY
+     * flipping without a WAIT transition.
+     */
+    private final Map<String, String> lastMarketDirection =
+            new LinkedHashMap<>();
+
+    private final Map<String, Boolean> reversalWaiting =
+            new LinkedHashMap<>();
+
+    /*
+     * History displayed by the activity.
+     */
     private final List<String> signalHistory =
             new ArrayList<>();
 
@@ -94,9 +132,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
 
-        setContentView(R.layout.activity_main);
+        setContentView(
+                R.layout.activity_main
+        );
 
         title = findViewById(R.id.title);
         market = findViewById(R.id.market);
@@ -138,7 +179,9 @@ public class MainActivity extends AppCompatActivity {
 
         loadActiveSignals();
 
-        title.setText("ForexPilot AI");
+        title.setText(
+                "ForexPilot AI"
+        );
 
         setupChart();
 
@@ -160,10 +203,16 @@ public class MainActivity extends AppCompatActivity {
                             + "to GitHub Secrets."
             );
 
-            bestSignal.setText("WAIT");
+            bestSignal.setText(
+                    "WAIT"
+            );
 
             bestSignal.setTextColor(
-                    Color.rgb(255, 213, 79)
+                    Color.rgb(
+                            255,
+                            213,
+                            79
+                    )
             );
 
             confirmation.setText(
@@ -171,7 +220,11 @@ public class MainActivity extends AppCompatActivity {
             );
 
             confirmation.setTextColor(
-                    Color.rgb(255, 213, 79)
+                    Color.rgb(
+                            255,
+                            213,
+                            79
+                    )
             );
 
             bestDetails.setText(
@@ -187,8 +240,12 @@ public class MainActivity extends AppCompatActivity {
 
         startScanner(apiKey);
 
+        /*
+         * Update market open/closed status.
+         */
         handler.postDelayed(
                 new Runnable() {
+
                     @Override
                     public void run() {
 
@@ -203,8 +260,12 @@ public class MainActivity extends AppCompatActivity {
                 30000L
         );
 
+        /*
+         * Automatic candle refresh.
+         */
         handler.postDelayed(
                 new Runnable() {
+
                     @Override
                     public void run() {
 
@@ -222,23 +283,47 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * CHART SETUP
+     * CHART
      * ========================================================
      */
 
     private void setupChart() {
 
         candleChart.setBackgroundColor(
-                Color.rgb(11, 15, 20)
+                Color.rgb(
+                        11,
+                        15,
+                        20
+                )
         );
 
-        candleChart.setDrawGridBackground(false);
-        candleChart.setDragEnabled(true);
-        candleChart.setScaleEnabled(true);
-        candleChart.setPinchZoom(true);
-        candleChart.setDoubleTapToZoomEnabled(true);
-        candleChart.setHighlightPerDragEnabled(true);
-        candleChart.setAutoScaleMinMaxEnabled(true);
+        candleChart.setDrawGridBackground(
+                false
+        );
+
+        candleChart.setDragEnabled(
+                true
+        );
+
+        candleChart.setScaleEnabled(
+                true
+        );
+
+        candleChart.setPinchZoom(
+                true
+        );
+
+        candleChart.setDoubleTapToZoomEnabled(
+                true
+        );
+
+        candleChart.setHighlightPerDragEnabled(
+                true
+        );
+
+        candleChart.setAutoScaleMinMaxEnabled(
+                true
+        );
 
         candleChart.setNoDataText(
                 "Waiting for candle data..."
@@ -260,7 +345,9 @@ public class MainActivity extends AppCompatActivity {
         Legend legend =
                 candleChart.getLegend();
 
-        legend.setEnabled(false);
+        legend.setEnabled(
+                false
+        );
 
         YAxis leftAxis =
                 candleChart.getAxisLeft();
@@ -269,12 +356,16 @@ public class MainActivity extends AppCompatActivity {
                 Color.LTGRAY
         );
 
-        leftAxis.setDrawGridLines(true);
+        leftAxis.setDrawGridLines(
+                true
+        );
 
         YAxis rightAxis =
                 candleChart.getAxisRight();
 
-        rightAxis.setEnabled(false);
+        rightAxis.setEnabled(
+                false
+        );
 
         candleChart.getXAxis()
                 .setTextColor(
@@ -282,14 +373,10 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         candleChart.getXAxis()
-                .setDrawGridLines(false);
+                .setDrawGridLines(
+                        false
+                );
     }
-
-    /*
-     * ========================================================
-     * DRAW REAL CANDLES
-     * ========================================================
-     */
 
     private void updateChart() {
 
@@ -301,7 +388,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         List<Candle> candles =
-                candleData.get(chartSymbol);
+                candleData.get(
+                        chartSymbol
+                );
 
         if (candles == null
                 || candles.isEmpty()) {
@@ -361,7 +450,11 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         dataSet.setDecreasingColor(
-                Color.rgb(255, 80, 80)
+                Color.rgb(
+                        255,
+                        80,
+                        80
+                )
         );
 
         dataSet.setDecreasingPaintStyle(
@@ -369,7 +462,11 @@ public class MainActivity extends AppCompatActivity {
         );
 
         dataSet.setIncreasingColor(
-                Color.rgb(76, 255, 120)
+                Color.rgb(
+                        76,
+                        255,
+                        120
+                )
         );
 
         dataSet.setIncreasingPaintStyle(
@@ -377,7 +474,11 @@ public class MainActivity extends AppCompatActivity {
         );
 
         dataSet.setNeutralColor(
-                Color.rgb(180, 180, 180)
+                Color.rgb(
+                        180,
+                        180,
+                        180
+                )
         );
 
         dataSet.setShadowColor(
@@ -392,10 +493,14 @@ public class MainActivity extends AppCompatActivity {
                 0.15f
         );
 
-        dataSet.setDrawValues(false);
+        dataSet.setDrawValues(
+                false
+        );
 
         CandleData candleDataSet =
-                new CandleData(dataSet);
+                new CandleData(
+                        dataSet
+                );
 
         candleChart.setData(
                 candleDataSet
@@ -428,6 +533,9 @@ public class MainActivity extends AppCompatActivity {
 
         axis.removeAllLimitLines();
 
+        /*
+         * Prefer CURRENT MARKET SIGNAL for the chart.
+         */
         SignalResult result =
                 results.get(symbol);
 
@@ -442,7 +550,7 @@ public class MainActivity extends AppCompatActivity {
                 axis,
                 result.entry,
                 "ENTRY",
-                Color.rgb(255, 255, 255)
+                Color.WHITE
         );
 
         if (result.sl > 0) {
@@ -451,7 +559,11 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.sl,
                     "SL",
-                    Color.rgb(255, 80, 80)
+                    Color.rgb(
+                            255,
+                            80,
+                            80
+                    )
             );
         }
 
@@ -461,7 +573,11 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.tp1,
                     "TP1",
-                    Color.rgb(76, 255, 120)
+                    Color.rgb(
+                            76,
+                            255,
+                            120
+                    )
             );
         }
 
@@ -471,7 +587,11 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.tp2,
                     "TP2",
-                    Color.rgb(76, 255, 120)
+                    Color.rgb(
+                            76,
+                            255,
+                            120
+                    )
             );
         }
 
@@ -481,7 +601,11 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.tp3,
                     "TP3",
-                    Color.rgb(76, 255, 120)
+                    Color.rgb(
+                            76,
+                            255,
+                            120
+                    )
             );
         }
     }
@@ -498,21 +622,36 @@ public class MainActivity extends AppCompatActivity {
                         label
                 );
 
-        line.setLineWidth(1.2f);
-        line.setLineColor(color);
-        line.setTextColor(color);
-        line.setTextSize(10f);
+        line.setLineWidth(
+                1.2f
+        );
 
-        axis.addLimitLine(line);
+        line.setLineColor(
+                color
+        );
+
+        line.setTextColor(
+                color
+        );
+
+        line.setTextSize(
+                10f
+        );
+
+        axis.addLimitLine(
+                line
+        );
     }
 
     private String getChartSymbol() {
 
         if (!"ALL".equals(selectedMarket)) {
+
             return selectedMarket;
         }
 
         if (bestSymbol != null) {
+
             return bestSymbol;
         }
 
@@ -521,7 +660,7 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * SAVED HISTORY
+     * HISTORY
      * ========================================================
      */
 
@@ -532,7 +671,9 @@ public class MainActivity extends AppCompatActivity {
         List<String> saved =
                 signalStorage.getHistory();
 
-        signalHistory.addAll(saved);
+        signalHistory.addAll(
+                saved
+        );
 
         wins = 0;
         losses = 0;
@@ -540,15 +681,21 @@ public class MainActivity extends AppCompatActivity {
 
         for (String record : saved) {
 
-            if (record.contains(" | WIN | ")) {
+            if (record.contains(
+                    " | WIN | "
+            )) {
 
                 wins++;
 
-            } else if (record.contains(" | LOSS | ")) {
+            } else if (record.contains(
+                    " | LOSS | "
+            )) {
 
                 losses++;
 
-            } else if (record.contains(" | EXPIRED | ")) {
+            } else if (record.contains(
+                    " | EXPIRED | "
+            )) {
 
                 expired++;
             }
@@ -557,7 +704,7 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * ACTIVE SIGNALS
+     * ACTIVE TRADES
      * ========================================================
      */
 
@@ -574,26 +721,31 @@ public class MainActivity extends AppCompatActivity {
             if (result != null
                     && result.isOpen()) {
 
-                results.put(
+                activeTrades.put(
                         symbol,
                         result
                 );
-
-            } else {
-
-                results.put(
-                        symbol,
-                        new SignalResult(
-                                "WAIT",
-                                0,
-                                0,
-                                0,
-                                0,
-                                0,
-                                0
-                        )
-                );
             }
+
+            /*
+             * Current market signal starts at WAIT.
+             *
+             * IMPORTANT:
+             * The old active trade does NOT become the
+             * current market signal.
+             */
+            results.put(
+                    symbol,
+                    new SignalResult(
+                            "WAIT",
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0
+                    )
+            );
 
             prices.put(
                     symbol,
@@ -603,6 +755,16 @@ public class MainActivity extends AppCompatActivity {
             candleData.put(
                     symbol,
                     new ArrayList<>()
+            );
+
+            lastMarketDirection.put(
+                    symbol,
+                    "WAIT"
+            );
+
+            reversalWaiting.put(
+                    symbol,
+                    false
             );
         }
     }
@@ -691,23 +853,33 @@ public class MainActivity extends AppCompatActivity {
         );
 
         marketGold.setOnClickListener(v ->
-                selectMarket("XAU/USD")
+                selectMarket(
+                        "XAU/USD"
+                )
         );
 
         marketEur.setOnClickListener(v ->
-                selectMarket("EUR/USD")
+                selectMarket(
+                        "EUR/USD"
+                )
         );
 
         marketGbp.setOnClickListener(v ->
-                selectMarket("GBP/USD")
+                selectMarket(
+                        "GBP/USD"
+                )
         );
 
         marketJpy.setOnClickListener(v ->
-                selectMarket("USD/JPY")
+                selectMarket(
+                        "USD/JPY"
+                )
         );
 
         marketNzd.setOnClickListener(v ->
-                selectMarket("NZD/USD")
+                selectMarket(
+                        "NZD/USD"
+                )
         );
 
         refreshButton.setOnClickListener(v -> {
@@ -727,11 +899,13 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            refreshSignals(apiKey);
+            refreshSignals(
+                    apiKey
+            );
 
             Toast.makeText(
                     MainActivity.this,
-                    "Refreshing signals...",
+                    "Refreshing live market...",
                     Toast.LENGTH_SHORT
             ).show();
         });
@@ -748,6 +922,41 @@ public class MainActivity extends AppCompatActivity {
         selectedTimeframe =
                 interval;
 
+        /*
+         * Clear CURRENT market signals for the new
+         * timeframe.
+         *
+         * Existing active trades remain untouched.
+         */
+        for (String symbol : SYMBOLS) {
+
+            results.put(
+                    symbol,
+                    new SignalResult(
+                            "WAIT",
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0
+                    )
+            );
+
+            lastMarketDirection.put(
+                    symbol,
+                    "WAIT"
+            );
+
+            reversalWaiting.put(
+                    symbol,
+                    false
+            );
+        }
+
+        bestSymbol = null;
+        bestResult = null;
+
         updated.setText(
                 "Timeframe selected: "
                         + display
@@ -760,7 +969,9 @@ public class MainActivity extends AppCompatActivity {
         if (apiKey != null
                 && !apiKey.trim().isEmpty()) {
 
-            refreshSignals(apiKey);
+            refreshSignals(
+                    apiKey
+            );
         }
     }
 
@@ -771,6 +982,7 @@ public class MainActivity extends AppCompatActivity {
                 symbol;
 
         updateScanner();
+
         updateChart();
 
         updated.setText(
@@ -874,7 +1086,7 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * REFRESH SIGNALS
+     * REFRESH
      * ========================================================
      */
 
@@ -885,7 +1097,7 @@ public class MainActivity extends AppCompatActivity {
                 updated.setText(
                         "Refreshing "
                                 + timeframeName()
-                                + " signals..."
+                                + " live market..."
                 )
         );
 
@@ -899,6 +1111,29 @@ public class MainActivity extends AppCompatActivity {
                 client.candles(
                         symbol,
                         selectedTimeframe,
+                        apiKey
+                );
+
+            } else {
+
+                TwelveDataClient newClient =
+                        new TwelveDataClient(
+                                new PairCallback(symbol)
+                        );
+
+                clients.put(
+                        symbol,
+                        newClient
+                );
+
+                newClient.candles(
+                        symbol,
+                        selectedTimeframe,
+                        apiKey
+                );
+
+                newClient.connect(
+                        symbol,
                         apiKey
                 );
             }
@@ -945,7 +1180,7 @@ public class MainActivity extends AppCompatActivity {
 
         text.append(
                 timeframeName()
-                        + " MARKET SCANNER\n\n"
+                        + " LIVE MARKET SCANNER\n\n"
         );
 
         for (String symbol : SYMBOLS) {
@@ -971,30 +1206,49 @@ public class MainActivity extends AppCompatActivity {
             text.append(symbol)
                     .append("\n");
 
-            text.append("Signal: ")
-                    .append(result.action)
+            text.append(
+                    "CURRENT SIGNAL: "
+            )
+                    .append(
+                            result.action
+                    )
                     .append("\n");
 
-            text.append("Confidence: ")
-                    .append(result.confidence)
+            text.append(
+                    "Confidence: "
+            )
+                    .append(
+                            result.confidence
+                    )
                     .append("%\n");
 
-            text.append("Status: ")
-                    .append(result.status)
-                    .append("\n");
+            /*
+             * Show active trade separately.
+             */
+            SignalResult active =
+                    activeTrades.get(symbol);
 
-            if (result.highestTargetReached > 0) {
+            if (active != null
+                    && active.isOpen()) {
 
-                text.append("Target Progress: TP")
+                text.append(
+                        "ACTIVE TRADE: "
+                )
                         .append(
-                                result.highestTargetReached
+                                active.action
                         )
-                        .append(" reached\n");
+                        .append(" • ")
+                        .append(
+                                active.status
+                        )
+                        .append("\n");
             }
 
             if (currentPrice > 0) {
 
-                text.append("Price: ")
+                text.append(
+                        "Live Price: "
+                )
                         .append(
                                 formatPrice(
                                         symbol,
@@ -1007,7 +1261,9 @@ public class MainActivity extends AppCompatActivity {
             if (!"WAIT".equals(result.action)
                     && result.entry > 0) {
 
-                text.append("Entry: ")
+                text.append(
+                        "Entry: "
+                )
                         .append(
                                 formatPrice(
                                         symbol,
@@ -1016,7 +1272,9 @@ public class MainActivity extends AppCompatActivity {
                         )
                         .append("\n");
 
-                text.append("SL: ")
+                text.append(
+                        "SL: "
+                )
                         .append(
                                 formatPrice(
                                         symbol,
@@ -1025,7 +1283,9 @@ public class MainActivity extends AppCompatActivity {
                         )
                         .append("\n");
 
-                text.append("TP1: ")
+                text.append(
+                        "TP1: "
+                )
                         .append(
                                 formatPrice(
                                         symbol,
@@ -1034,7 +1294,9 @@ public class MainActivity extends AppCompatActivity {
                         )
                         .append("\n");
 
-                text.append("TP2: ")
+                text.append(
+                        "TP2: "
+                )
                         .append(
                                 formatPrice(
                                         symbol,
@@ -1043,7 +1305,9 @@ public class MainActivity extends AppCompatActivity {
                         )
                         .append("\n");
 
-                text.append("TP3: ")
+                text.append(
+                        "TP3: "
+                )
                         .append(
                                 formatPrice(
                                         symbol,
@@ -1052,19 +1316,14 @@ public class MainActivity extends AppCompatActivity {
                         )
                         .append("\n");
 
-                text.append("Signal Time: ")
+                text.append(
+                        "Signal Time: "
+                )
                         .append(
                                 formatSignalTime(
                                         result.signalTimeMillis
                                 )
                         )
-                        .append("\n");
-            }
-
-            if (!result.resultReason.isEmpty()) {
-
-                text.append("Result: ")
-                        .append(result.resultReason)
                         .append("\n");
             }
 
@@ -1082,7 +1341,7 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * BEST SIGNAL
+     * BEST CURRENT SIGNAL
      * ========================================================
      */
 
@@ -1106,17 +1365,11 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             }
 
-            if ("WAIT".equals(result.action)) {
-                continue;
-            }
-
             /*
-             * IMPORTANT:
-             * OPEN, TP1 HIT and TP2 HIT are
-             * all still active signals.
+             * BEST SIGNAL uses CURRENT market signal,
+             * not an old active trade.
              */
-
-            if (!result.isOpen()) {
+            if ("WAIT".equals(result.action)) {
                 continue;
             }
 
@@ -1134,7 +1387,9 @@ public class MainActivity extends AppCompatActivity {
 
         if (bestResult == null) {
 
-            bestSignal.setText("WAIT");
+            bestSignal.setText(
+                    "WAIT"
+            );
 
             bestSignal.setTextColor(
                     Color.rgb(
@@ -1157,7 +1412,7 @@ public class MainActivity extends AppCompatActivity {
             );
 
             bestDetails.setText(
-                    "No active BUY or SELL setup right now."
+                    "No confirmed current BUY or SELL setup."
             );
 
             updateCurrentSignalStatus();
@@ -1224,28 +1479,15 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
-        String targetProgress =
-                "No target reached";
-
-        if (bestResult.highestTargetReached > 0) {
-
-            targetProgress =
-                    "TP"
-                            + bestResult.highestTargetReached
-                            + " reached";
-        }
-
         bestDetails.setText(
                 String.format(
                         Locale.US,
 
-                        "BEST SIGNAL\n\n"
+                        "CURRENT MARKET SIGNAL\n\n"
                                 + "Market: %s\n"
                                 + "Timeframe: %s\n"
                                 + "Signal: %s\n"
-                                + "Confidence: %d%%\n"
-                                + "Status: %s\n"
-                                + "Target Progress: %s\n\n"
+                                + "Confidence: %d%%\n\n"
                                 + "Entry: %s\n"
                                 + "Stop Loss: %s\n"
                                 + "TP1: %s\n"
@@ -1260,10 +1502,6 @@ public class MainActivity extends AppCompatActivity {
                         bestResult.action,
 
                         bestResult.confidence,
-
-                        bestResult.status,
-
-                        targetProgress,
 
                         formatPrice(
                                 bestSymbol,
@@ -1334,44 +1572,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        String status =
-                bestResult.status;
-
         signalStatus.setText(
-                status
+                bestResult.action
         );
 
-        if ("OPEN".equals(status)) {
-
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
-                    )
-            );
-
-        } else if ("TP1 HIT".equals(status)) {
-
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            255,
-                            193,
-                            7
-                    )
-            );
-
-        } else if ("TP2 HIT".equals(status)) {
-
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            255,
-                            152,
-                            0
-                    )
-            );
-
-        } else if ("WIN".equals(status)) {
+        if ("BUY".equals(bestResult.action)) {
 
             signalStatus.setTextColor(
                     Color.rgb(
@@ -1381,7 +1586,7 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-        } else if ("LOSS".equals(status)) {
+        } else if ("SELL".equals(bestResult.action)) {
 
             signalStatus.setTextColor(
                     Color.rgb(
@@ -1395,9 +1600,9 @@ public class MainActivity extends AppCompatActivity {
 
             signalStatus.setTextColor(
                     Color.rgb(
-                            180,
-                            180,
-                            180
+                            255,
+                            213,
+                            79
                     )
             );
         }
@@ -1409,19 +1614,10 @@ public class MainActivity extends AppCompatActivity {
                 )
         );
 
-        if (bestResult.resultReason.isEmpty()) {
-
-            signalResult.setText(
-                    "Result: Monitoring..."
-            );
-
-        } else {
-
-            signalResult.setText(
-                    "Result: "
-                            + bestResult.resultReason
-            );
-        }
+        signalResult.setText(
+                "Current market setup • "
+                        + timeframeName()
+        );
     }
 
     /*
@@ -1479,12 +1675,7 @@ public class MainActivity extends AppCompatActivity {
         int count = 0;
 
         for (SignalResult result :
-                results.values()) {
-
-            /*
-             * OPEN + TP1 HIT + TP2 HIT
-             * are all active.
-             */
+                activeTrades.values()) {
 
             if (result != null
                     && result.isOpen()) {
@@ -1498,72 +1689,59 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * SIGNAL RESULT TRACKING
+     * ACTIVE TRADE RESULT TRACKING
      * ========================================================
      */
 
-    private void checkSignalResult(
+    private void checkActiveTrade(
             String symbol,
-            SignalResult result,
             double price) {
 
-        if (result == null
-                || price <= 0) {
+        if (price <= 0) {
+            return;
+        }
+
+        SignalResult trade =
+                activeTrades.get(symbol);
+
+        if (trade == null
+                || !trade.isOpen()) {
 
             return;
         }
 
         String oldStatus =
-                result.status;
+                trade.status;
 
         int oldTarget =
-                result.highestTargetReached;
+                trade.highestTargetReached;
 
-        result.updateStatus(
+        trade.updateStatus(
                 price
         );
 
         String newStatus =
-                result.status;
+                trade.status;
 
         int newTarget =
-                result.highestTargetReached;
-
-        /*
-         * Nothing changed.
-         */
+                trade.highestTargetReached;
 
         if (oldStatus.equals(newStatus)
                 && oldTarget == newTarget) {
-
-            /*
-             * Keep active signal safely stored.
-             */
-
-            if (result.isOpen()) {
-
-                signalStorage.saveActiveSignal(
-                        symbol,
-                        result
-                );
-            }
 
             return;
         }
 
         /*
-         * TP1 or TP2 reached.
-         *
-         * These are NOT completed signals.
-         * They remain active and must be saved.
+         * TP1 / TP2:
+         * Still an active trade.
          */
-
         if ("TP1 HIT".equals(newStatus)
                 || "TP2 HIT".equals(newStatus)) {
 
             signalStorage.saveActiveSignal(
                     symbol,
-                    result
+                    trade
             );
 
             updateScanner();
@@ -1572,76 +1750,308 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /*
-         * Final outcomes.
+         * Completed trade.
          */
-
         if ("WIN".equals(newStatus)) {
 
             wins++;
 
-            saveCompletedSignal(
+            completeTrade(
                     symbol,
-                    result
+                    trade
             );
 
         } else if ("LOSS".equals(newStatus)) {
 
             losses++;
 
-            saveCompletedSignal(
+            completeTrade(
                     symbol,
-                    result
+                    trade
             );
 
         } else if ("EXPIRED".equals(newStatus)) {
 
             expired++;
 
-            saveCompletedSignal(
+            completeTrade(
                     symbol,
-                    result
+                    trade
             );
         }
 
         updatePerformance();
     }
 
-    /*
-     * ========================================================
-     * SAVE COMPLETED SIGNAL
-     * ========================================================
-     */
-
-    private void saveCompletedSignal(
+    private void completeTrade(
             String symbol,
-            SignalResult result) {
+            SignalResult trade) {
 
         signalStorage.removeActiveSignal(
                 symbol
         );
 
+        /*
+         * Save the final outcome permanently.
+         */
         signalStorage.saveSignal(
                 symbol,
-                result
+                trade
         );
 
-        String savedRecord =
-                buildHistoryText(
-                        symbol,
-                        result
-                );
+        activeTrades.remove(
+                symbol
+        );
 
+        /*
+         * Add a readable history entry.
+         */
         signalHistory.add(
                 0,
-                savedRecord
+                buildHistoryText(
+                        symbol,
+                        trade
+                )
         );
 
-        if (signalHistory.size() > 20) {
+        if (signalHistory.size() > 50) {
 
             signalHistory.remove(
                     signalHistory.size() - 1
             );
         }
+    }
+
+    /*
+     * ========================================================
+     * CREATE NEW CURRENT SIGNAL
+     * ========================================================
+     */
+
+    private void processCurrentSignal(
+            String symbol,
+            SignalResult analyzed) {
+
+        if (analyzed == null) {
+            return;
+        }
+
+        String newDirection =
+                analyzed.action;
+
+        String previousDirection =
+                lastMarketDirection.containsKey(symbol)
+                        ? lastMarketDirection.get(symbol)
+                        : "WAIT";
+
+        if (previousDirection == null) {
+
+            previousDirection =
+                    "WAIT";
+        }
+
+        /*
+         * No signal.
+         */
+        if ("WAIT".equals(newDirection)) {
+
+            /*
+             * If the engine itself says WAIT,
+             * the current market signal follows it.
+             */
+            results.put(
+                    symbol,
+                    analyzed
+            );
+
+            return;
+        }
+
+        /*
+         * First confirmed signal.
+         */
+        if ("WAIT".equals(previousDirection)) {
+
+            createNewMarketSignal(
+                    symbol,
+                    analyzed
+            );
+
+            return;
+        }
+
+        /*
+         * Same direction:
+         *
+         * Keep following that market direction.
+         *
+         * This prevents duplicate signals on every
+         * refresh while the market is still moving
+         * in the same direction.
+         */
+        if (previousDirection.equals(
+                newDirection
+        )) {
+
+            results.put(
+                    symbol,
+                    analyzed
+            );
+
+            reversalWaiting.put(
+                    symbol,
+                    false
+            );
+
+            return;
+        }
+
+        /*
+         * Opposite direction detected.
+         *
+         * DO NOT immediately flip BUY -> SELL or
+         * SELL -> BUY.
+         *
+         * First transition through WAIT.
+         */
+        boolean waiting =
+                reversalWaiting.containsKey(symbol)
+                        && Boolean.TRUE.equals(
+                        reversalWaiting.get(symbol)
+                );
+
+        if (!waiting) {
+
+            SignalResult wait =
+                    new SignalResult(
+                            "WAIT",
+                            analyzed.entry,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0
+                    );
+
+            results.put(
+                    symbol,
+                    wait
+            );
+
+            reversalWaiting.put(
+                    symbol,
+                    true
+            );
+
+            return;
+        }
+
+        /*
+         * Opposite direction has now survived a WAIT
+         * transition.
+         *
+         * Accept the new signal.
+         */
+        createNewMarketSignal(
+                symbol,
+                analyzed
+        );
+
+        reversalWaiting.put(
+                symbol,
+                false
+        );
+    }
+
+    private void createNewMarketSignal(
+            String symbol,
+            SignalResult signal) {
+
+        /*
+         * Store as the CURRENT market signal.
+         */
+        results.put(
+                symbol,
+                signal
+        );
+
+        lastMarketDirection.put(
+                symbol,
+                signal.action
+        );
+
+        /*
+         * Save the new signal to permanent history
+         * immediately.
+         *
+         * This means today's signals are not dependent
+         * on whether the trade later wins or loses.
+         */
+        signalStorage.saveSignal(
+                symbol,
+                signal
+        );
+
+        /*
+         * Keep monitoring this signal as an active trade.
+         *
+         * IMPORTANT:
+         * This does not replace the current signal later.
+         */
+        activeTrades.put(
+                symbol,
+                signal
+        );
+
+        signalStorage.saveActiveSignal(
+                symbol,
+                signal
+        );
+    }
+
+    /*
+     * ========================================================
+     * HISTORY DISPLAY
+     * ========================================================
+     */
+
+    private void updateHistoryDisplay() {
+
+        if (signalHistory.isEmpty()) {
+
+            history.setText(
+                    "No signal history yet."
+            );
+
+            return;
+        }
+
+        StringBuilder text =
+                new StringBuilder();
+
+        int limit =
+                Math.min(
+                        signalHistory.size(),
+                        50
+                );
+
+        for (int i = 0;
+             i < limit;
+             i++) {
+
+            text.append(
+                    i + 1
+            )
+                    .append(". ")
+                    .append(
+                            signalHistory.get(i)
+                    )
+                    .append("\n\n");
+        }
+
+        history.setText(
+                text.toString()
+        );
     }
 
     private String buildHistoryText(
@@ -1672,52 +2082,7 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * HISTORY DISPLAY
-     * ========================================================
-     */
-
-    private void updateHistoryDisplay() {
-
-        if (signalHistory.isEmpty()) {
-
-            history.setText(
-                    "No completed signals yet."
-            );
-
-            return;
-        }
-
-        StringBuilder text =
-                new StringBuilder();
-
-        int limit =
-                Math.min(
-                        signalHistory.size(),
-                        20
-                );
-
-        for (int i = 0;
-             i < limit;
-             i++) {
-
-            text.append(
-                    i + 1
-            )
-                    .append(". ")
-                    .append(
-                            signalHistory.get(i)
-                    )
-                    .append("\n\n");
-        }
-
-        history.setText(
-                text.toString()
-        );
-    }
-
-    /*
-     * ========================================================
-     * TIME FORMAT
+     * TIME
      * ========================================================
      */
 
@@ -1743,30 +2108,26 @@ public class MainActivity extends AppCompatActivity {
 
     /*
      * ========================================================
-     * COPY SIGNAL
+     * COPY
      * ========================================================
      */
 
     private void copyBestSignal() {
 
         if (bestSymbol == null
-                || bestResult == null) {
+                || bestResult == null
+                || "WAIT".equals(
+                bestResult.action
+        )) {
 
             Toast.makeText(
                     this,
-                    "No active BUY or SELL signal.",
+                    "No current BUY or SELL signal.",
                     Toast.LENGTH_SHORT
             ).show();
 
             return;
         }
-
-        String targetProgress =
-                bestResult.highestTargetReached > 0
-                        ? "TP"
-                        + bestResult.highestTargetReached
-                        + " reached"
-                        : "No target reached";
 
         String text =
                 "ForexPilot AI Signal\n\n"
@@ -1782,12 +2143,6 @@ public class MainActivity extends AppCompatActivity {
                         + "Confidence: "
                         + bestResult.confidence
                         + "%"
-                        + "\n"
-                        + "Status: "
-                        + bestResult.status
-                        + "\n"
-                        + "Target Progress: "
-                        + targetProgress
                         + "\n"
                         + "Signal Time: "
                         + formatSignalTime(
@@ -1915,22 +2270,26 @@ public class MainActivity extends AppCompatActivity {
                         price
                 );
 
-                SignalResult result =
-                        results.get(symbol);
-
-                if (result != null) {
-
-                    checkSignalResult(
-                            symbol,
-                            result,
-                            price
-                    );
-                }
+                /*
+                 * Monitor EXISTING trade independently
+                 * from the CURRENT market signal.
+                 */
+                checkActiveTrade(
+                        symbol,
+                        price
+                );
 
                 updateScanner();
 
+                /*
+                 * Update chart levels from current signal.
+                 */
+                updateChart();
+
                 updated.setText(
-                        "Live prices updating • "
+                        "LIVE • "
+                                + symbol
+                                + " • "
                                 + timeframeName()
                 );
             });
@@ -1951,7 +2310,7 @@ public class MainActivity extends AppCompatActivity {
                             candles
                     );
 
-            SignalResult newResult =
+            SignalResult analyzed =
                     SignalEngine.analyze(
                             candles
                     );
@@ -1963,48 +2322,31 @@ public class MainActivity extends AppCompatActivity {
                         copy
                 );
 
-                SignalResult existing =
-                        results.get(symbol);
-
                 /*
-                 * Never overwrite an active signal.
+                 * IMPORTANT:
                  *
-                 * This includes:
-                 * OPEN
-                 * TP1 HIT
-                 * TP2 HIT
+                 * Always analyze the newest candles.
+                 *
+                 * We no longer say:
+                 *
+                 * "Never overwrite an active signal."
+                 *
+                 * The CURRENT SIGNAL is allowed to change
+                 * as market structure changes.
                  */
-
-                if (existing != null
-                        && existing.isOpen()) {
-
-                    signalStorage.saveActiveSignal(
-                            symbol,
-                            existing
-                    );
-
-                } else {
-
-                    results.put(
-                            symbol,
-                            newResult
-                    );
-
-                    if (newResult.isOpen()) {
-
-                        signalStorage.saveActiveSignal(
-                                symbol,
-                                newResult
-                        );
-                    }
-                }
+                processCurrentSignal(
+                        symbol,
+                        analyzed
+                );
 
                 updateScanner();
 
                 updateChart();
 
                 updated.setText(
-                        "Signals + chart updated • "
+                        "LIVE MARKET UPDATED • "
+                                + symbol
+                                + " • "
                                 + timeframeName()
                 );
             });
