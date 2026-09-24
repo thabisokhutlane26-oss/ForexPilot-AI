@@ -15,8 +15,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- Login screen -->
         <activity
-            android:name=".MainActivity"
+            android:name=".LoginActivity"
             android:exported="true">
 
             <intent-filter>
@@ -25,6 +26,11 @@
             </intent-filter>
 
         </activity>
+
+        <!-- Main ForexPilot dashboard -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
 
         <service
             android:name=".ForexMonitorService"
