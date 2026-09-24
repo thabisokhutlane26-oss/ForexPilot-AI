@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "141135581648",
+    "project_id": "forexpilot-ai",
+    "storage_bucket": "forexpilot-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:141135581648:android:dfd2e0d245cf349d15e9d5",
+        "android_client_info": {
+          "package_name": "com.forexpilot.ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlHRGX0ObHJg5_TUqk-35zOHoE2UIzU1k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
