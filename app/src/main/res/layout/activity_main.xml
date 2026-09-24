@@ -298,7 +298,7 @@
                 android:id="@+id/performanceSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="WIN RATE: 0%\n\nWINS: 0\nLOSSES: 0\nOPEN: 0\nEXPIRED: 0"
+                android:text="WIN RATE: 0%&#10;&#10;WINS: 0&#10;LOSSES: 0&#10;OPEN: 0&#10;EXPIRED: 0"
                 android:textColor="#D6DCE5"
                 android:textSize="16sp"
                 android:gravity="center"
@@ -406,6 +406,15 @@
             android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/logoutButton"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:text="🚪  LOG OUT"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp" />
 
         <TextView
             android:id="@+id/updated"
