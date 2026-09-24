@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -38,8 +39,22 @@ public class ForexMonitorService extends Service {
     private static final int FOREGROUND_ID =
             9001;
 
+    /*
+     * IMPORTANT:
+     *
+     * Background scanning is now every 15 minutes.
+     *
+     * We scan ONLY the timeframe selected
+     * inside the ForexPilot AI app.
+     */
     private static final long SCAN_INTERVAL_SECONDS =
-            60L;
+            15L * 60L;
+
+    private static final String PREFS_NAME =
+            "forexpilot_settings";
+
+    private static final String PREF_SELECTED_TIMEFRAME =
+            "selected_timeframe";
 
     /*
      * Markets monitored in the background.
@@ -50,26 +65,6 @@ public class ForexMonitorService extends Service {
             "GBP/USD",
             "USD/JPY",
             "NZD/USD"
-    };
-
-    /*
-     * All requested ForexPilot AI timeframes.
-     *
-     * Twelve Data interval names:
-     * 5min
-     * 15min
-     * 30min
-     * 1h
-     * 4h
-     * 1day
-     */
-    private static final String[] INTERVALS = {
-            "5min",
-            "15min",
-            "30min",
-            "1h",
-            "4h",
-            "1day"
     };
 
     private ScheduledExecutorService scheduler;
@@ -94,11 +89,7 @@ public class ForexMonitorService extends Service {
                 buildMonitoringNotification();
 
         /*
-         * Android 14+ supports the SPECIAL_USE
-         * foreground-service type.
-         *
-         * Android 13 and below use the normal
-         * two-argument startForeground call.
+         * Android 14+ supports SPECIAL_USE.
          */
         if (Build.VERSION.SDK_INT >= 34) {
 
@@ -132,6 +123,12 @@ public class ForexMonitorService extends Service {
         scheduler =
                 Executors.newSingleThreadScheduledExecutor();
 
+        /*
+         * First scan immediately.
+         *
+         * After that:
+         * one scan every 15 minutes.
+         */
         scheduler.scheduleWithFixedDelay(
                 this::scanMarkets,
                 0,
@@ -152,74 +149,127 @@ public class ForexMonitorService extends Service {
         }
 
         /*
-         * Scan every market on every timeframe.
+         * Read the timeframe currently selected
+         * in the ForexPilot AI app.
+         */
+        SharedPreferences preferences =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        String selectedTimeframe =
+                preferences.getString(
+                        PREF_SELECTED_TIMEFRAME,
+                        "5min"
+                );
+
+        /*
+         * Safety check.
+         *
+         * Only allow the six timeframes used
+         * by ForexPilot AI.
+         */
+        if (!isAllowedTimeframe(
+                selectedTimeframe)) {
+
+            selectedTimeframe = "5min";
+        }
+
+        /*
+         * IMPORTANT:
+         *
+         * We DO NOT loop through six timeframes.
+         *
+         * Only the selected timeframe is scanned.
+         *
+         * Example:
+         *
+         * Selected = 15M
+         *
+         * Requests:
+         * XAU/USD 15M
+         * EUR/USD 15M
+         * GBP/USD 15M
+         * USD/JPY 15M
+         * NZD/USD 15M
+         *
+         * Then wait 15 minutes.
          */
         for (String symbol : SYMBOLS) {
 
-            for (String interval : INTERVALS) {
+            try {
 
-                try {
+                List<Candle> candles =
+                        getCandles(
+                                symbol,
+                                selectedTimeframe,
+                                apiKey
+                        );
 
-                    List<Candle> candles =
-                            getCandles(
-                                    symbol,
-                                    interval,
-                                    apiKey
-                            );
+                if (candles == null
+                        || candles.isEmpty()) {
 
-                    if (candles == null
-                            || candles.isEmpty()) {
-
-                        continue;
-                    }
-
-                    /*
-                     * Use the newest candle close as
-                     * the current background price.
-                     */
-                    double livePrice =
-                            candles.get(
-                                    candles.size() - 1
-                            ).close;
-
-                    SignalResult result =
-                            SignalEngine.analyze(
-                                    candles,
-                                    livePrice
-                            );
-
-                    if (result == null) {
-                        continue;
-                    }
-
-                    /*
-                     * WAIT does not create a notification.
-                     */
-                    if (!"BUY".equals(result.action)
-                            && !"SELL".equals(result.action)) {
-
-                        continue;
-                    }
-
-                    if (result.entry <= 0) {
-                        continue;
-                    }
-
-                    notifyIfNew(
-                            symbol,
-                            interval,
-                            result
-                    );
-
-                } catch (Exception ignored) {
-
-                    /*
-                     * If one market/timeframe fails,
-                     * continue scanning everything else.
-                     */
+                    continue;
                 }
+
+                /*
+                 * Use the newest candle close as
+                 * the current background price.
+                 */
+                double livePrice =
+                        candles.get(
+                                candles.size() - 1
+                        ).close;
+
+                SignalResult result =
+                        SignalEngine.analyze(
+                                candles,
+                                livePrice
+                        );
+
+                if (result == null) {
+                    continue;
+                }
+
+                /*
+                 * WAIT does not create a notification.
+                 */
+                if (!"BUY".equals(result.action)
+                        && !"SELL".equals(result.action)) {
+
+                    continue;
+                }
+
+                if (result.entry <= 0) {
+                    continue;
+                }
+
+                notifyIfNew(
+                        symbol,
+                        selectedTimeframe,
+                        result
+                );
+
+            } catch (Exception ignored) {
+
+                /*
+                 * If one market fails,
+                 * continue with the next market.
+                 */
             }
         }
+    }
+
+    private boolean isAllowedTimeframe(
+            String interval) {
+
+        return "5min".equals(interval)
+                || "15min".equals(interval)
+                || "30min".equals(interval)
+                || "1h".equals(interval)
+                || "4h".equals(interval)
+                || "1day".equals(interval);
     }
 
     private List<Candle> getCandles(
@@ -285,6 +335,10 @@ public class ForexMonitorService extends Service {
             JSONObject object =
                     new JSONObject(body);
 
+            /*
+             * Twelve Data can return an error
+             * object instead of values.
+             */
             if (!object.has("values")) {
                 return null;
             }
@@ -299,7 +353,7 @@ public class ForexMonitorService extends Service {
              * Twelve Data normally returns newest
              * candle first.
              *
-             * Reverse it so SignalEngine receives:
+             * SignalEngine receives:
              *
              * oldest -> newest
              */
@@ -369,19 +423,8 @@ public class ForexMonitorService extends Service {
                 );
 
         /*
-         * IMPORTANT:
-         *
-         * The key includes the timeframe.
-         *
-         * Therefore:
-         *
-         * XAU/USD 5M SELL
-         *
-         * and
-         *
-         * XAU/USD 1H SELL
-         *
-         * are treated as different signals.
+         * Each symbol + timeframe has its own
+         * notification memory.
          */
         String alertKey =
                 symbol
@@ -393,6 +436,9 @@ public class ForexMonitorService extends Service {
                         alertKey
                 );
 
+        /*
+         * Same signal = no duplicate notification.
+         */
         if (fingerprint.equals(previous)) {
             return;
         }
@@ -471,11 +517,6 @@ public class ForexMonitorService extends Service {
             String symbol,
             String interval) {
 
-        /*
-         * Different IDs prevent a new timeframe
-         * signal from replacing another timeframe's
-         * notification.
-         */
         return Math.abs(
                 (symbol + "|" + interval)
                         .hashCode()
@@ -685,6 +726,22 @@ public class ForexMonitorService extends Service {
                                 | PendingIntent.FLAG_IMMUTABLE
                 );
 
+        /*
+         * Read the currently selected timeframe
+         * for the monitoring notification.
+         */
+        SharedPreferences preferences =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        String selectedTimeframe =
+                preferences.getString(
+                        PREF_SELECTED_TIMEFRAME,
+                        "5min"
+                );
+
         return new NotificationCompat.Builder(
                 this,
                 CHANNEL_ID
@@ -697,7 +754,11 @@ public class ForexMonitorService extends Service {
                         "ForexPilot AI"
                 )
                 .setContentText(
-                        "Multi-timeframe background monitoring active"
+                        "Background monitoring: "
+                                + displayTimeframe(
+                                selectedTimeframe
+                        )
+                                + " • checks every 15 minutes"
                 )
                 .setContentIntent(
                         pendingIntent
@@ -782,9 +843,6 @@ public class ForexMonitorService extends Service {
         super.onDestroy();
     }
 
-    /*
-     * Android foreground-service timeout callback.
-     */
     @Override
     public void onTimeout(
             int startId,
