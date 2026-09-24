@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -93,6 +94,18 @@ public class MainActivity extends AppCompatActivity {
             "NZD/USD"
     };
 
+    /*
+     * ========================================================
+     * SELECTED TIMEFRAME STORAGE
+     * ========================================================
+     */
+
+    private static final String PREFS_NAME =
+            "ForexPilotSettings";
+
+    private static final String PREF_TIMEFRAME =
+            "selected_timeframe";
+
     private String selectedTimeframe = "5min";
     private String selectedMarket = "ALL";
 
@@ -117,6 +130,22 @@ public class MainActivity extends AppCompatActivity {
         setContentView(
                 R.layout.activity_main
         );
+
+        /*
+         * Load the last selected timeframe before
+         * starting the scanners.
+         */
+        SharedPreferences preferences =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        selectedTimeframe =
+                preferences.getString(
+                        PREF_TIMEFRAME,
+                        "5min"
+                );
 
         title = findViewById(R.id.title);
         market = findViewById(R.id.market);
@@ -217,16 +246,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * ====================================================
-         * BACKGROUND FOREX MONITOR
-         * ====================================================
-         *
-         * Start the foreground service while the Activity
-         * is visible. This allows ForexPilot AI to continue
-         * monitoring when the app is minimized or the screen
-         * is locked.
-         */
         requestNotificationPermissionIfNeeded();
 
         startBackgroundMonitor();
@@ -267,12 +286,6 @@ public class MainActivity extends AppCompatActivity {
                 REFRESH_INTERVAL
         );
     }
-
-    /*
-     * ========================================================
-     * BACKGROUND MONITOR
-     * ========================================================
-     */
 
     private void requestNotificationPermissionIfNeeded() {
 
@@ -318,12 +331,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * ========================================================
-     * CHART
-     * ========================================================
-     */
-
     private void setupChart() {
 
         candleChart.setBackgroundColor(
@@ -334,33 +341,13 @@ public class MainActivity extends AppCompatActivity {
                 )
         );
 
-        candleChart.setDrawGridBackground(
-                false
-        );
-
-        candleChart.setDragEnabled(
-                true
-        );
-
-        candleChart.setScaleEnabled(
-                true
-        );
-
-        candleChart.setPinchZoom(
-                true
-        );
-
-        candleChart.setDoubleTapToZoomEnabled(
-                true
-        );
-
-        candleChart.setHighlightPerDragEnabled(
-                true
-        );
-
-        candleChart.setAutoScaleMinMaxEnabled(
-                true
-        );
+        candleChart.setDrawGridBackground(false);
+        candleChart.setDragEnabled(true);
+        candleChart.setScaleEnabled(true);
+        candleChart.setPinchZoom(true);
+        candleChart.setDoubleTapToZoomEnabled(true);
+        candleChart.setHighlightPerDragEnabled(true);
+        candleChart.setAutoScaleMinMaxEnabled(true);
 
         candleChart.setNoDataText(
                 "Waiting for candle data..."
@@ -382,37 +369,24 @@ public class MainActivity extends AppCompatActivity {
         Legend legend =
                 candleChart.getLegend();
 
-        legend.setEnabled(
-                false
-        );
+        legend.setEnabled(false);
 
         YAxis leftAxis =
                 candleChart.getAxisLeft();
 
-        leftAxis.setTextColor(
-                Color.LTGRAY
-        );
-
-        leftAxis.setDrawGridLines(
-                true
-        );
+        leftAxis.setTextColor(Color.LTGRAY);
+        leftAxis.setDrawGridLines(true);
 
         YAxis rightAxis =
                 candleChart.getAxisRight();
 
-        rightAxis.setEnabled(
-                false
-        );
+        rightAxis.setEnabled(false);
 
         candleChart.getXAxis()
-                .setTextColor(
-                        Color.LTGRAY
-                );
+                .setTextColor(Color.LTGRAY);
 
         candleChart.getXAxis()
-                .setDrawGridLines(
-                        false
-                );
+                .setDrawGridLines(false);
     }
 
     private void updateChart() {
@@ -425,9 +399,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         List<Candle> candles =
-                candleData.get(
-                        chartSymbol
-                );
+                candleData.get(chartSymbol);
 
         if (candles == null
                 || candles.isEmpty()) {
@@ -487,11 +459,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         dataSet.setDecreasingColor(
-                Color.rgb(
-                        255,
-                        80,
-                        80
-                )
+                Color.rgb(255, 80, 80)
         );
 
         dataSet.setDecreasingPaintStyle(
@@ -499,11 +467,7 @@ public class MainActivity extends AppCompatActivity {
         );
 
         dataSet.setIncreasingColor(
-                Color.rgb(
-                        76,
-                        255,
-                        120
-                )
+                Color.rgb(76, 255, 120)
         );
 
         dataSet.setIncreasingPaintStyle(
@@ -511,56 +475,30 @@ public class MainActivity extends AppCompatActivity {
         );
 
         dataSet.setNeutralColor(
-                Color.rgb(
-                        180,
-                        180,
-                        180
-                )
+                Color.rgb(180, 180, 180)
         );
 
-        dataSet.setShadowColor(
-                Color.LTGRAY
-        );
-
-        dataSet.setShadowWidth(
-                1.0f
-        );
-
-        dataSet.setBarSpace(
-                0.15f
-        );
-
-        dataSet.setDrawValues(
-                false
-        );
+        dataSet.setShadowColor(Color.LTGRAY);
+        dataSet.setShadowWidth(1.0f);
+        dataSet.setBarSpace(0.15f);
+        dataSet.setDrawValues(false);
 
         CandleData candleDataSet =
-                new CandleData(
-                        dataSet
-                );
+                new CandleData(dataSet);
 
         candleChart.setData(
                 candleDataSet
         );
 
-        drawSignalLevels(
-                chartSymbol
-        );
+        drawSignalLevels(chartSymbol);
 
         candleChart.notifyDataSetChanged();
-
         candleChart.invalidate();
 
         candleChart.moveViewToX(
                 entries.size() - 1
         );
     }
-
-    /*
-     * ========================================================
-     * SIGNAL LEVELS
-     * ========================================================
-     */
 
     private void drawSignalLevels(
             String symbol) {
@@ -593,11 +531,7 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.sl,
                     "SL",
-                    Color.rgb(
-                            255,
-                            80,
-                            80
-                    )
+                    Color.rgb(255, 80, 80)
             );
         }
 
@@ -607,11 +541,7 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.tp1,
                     "TP1",
-                    Color.rgb(
-                            76,
-                            255,
-                            120
-                    )
+                    Color.rgb(76, 255, 120)
             );
         }
 
@@ -621,11 +551,7 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.tp2,
                     "TP2",
-                    Color.rgb(
-                            76,
-                            255,
-                            120
-                    )
+                    Color.rgb(76, 255, 120)
             );
         }
 
@@ -635,11 +561,7 @@ public class MainActivity extends AppCompatActivity {
                     axis,
                     result.tp3,
                     "TP3",
-                    Color.rgb(
-                            76,
-                            255,
-                            120
-                    )
+                    Color.rgb(76, 255, 120)
             );
         }
     }
@@ -656,25 +578,12 @@ public class MainActivity extends AppCompatActivity {
                         label
                 );
 
-        line.setLineWidth(
-                1.2f
-        );
+        line.setLineWidth(1.2f);
+        line.setLineColor(color);
+        line.setTextColor(color);
+        line.setTextSize(10f);
 
-        line.setLineColor(
-                color
-        );
-
-        line.setTextColor(
-                color
-        );
-
-        line.setTextSize(
-                10f
-        );
-
-        axis.addLimitLine(
-                line
-        );
+        axis.addLimitLine(line);
     }
 
     private String getChartSymbol() {
@@ -690,12 +599,6 @@ public class MainActivity extends AppCompatActivity {
         return "XAU/USD";
     }
 
-    /*
-     * ========================================================
-     * HISTORY
-     * ========================================================
-     */
-
     private void loadSavedHistory() {
 
         signalHistory.clear();
@@ -703,9 +606,7 @@ public class MainActivity extends AppCompatActivity {
         List<String> saved =
                 signalStorage.getHistory();
 
-        signalHistory.addAll(
-                saved
-        );
+        signalHistory.addAll(saved);
 
         wins = 0;
         losses = 0;
@@ -713,32 +614,15 @@ public class MainActivity extends AppCompatActivity {
 
         for (String record : saved) {
 
-            if (record.contains(
-                    " | WIN | "
-            )) {
-
+            if (record.contains(" | WIN | ")) {
                 wins++;
-
-            } else if (record.contains(
-                    " | LOSS | "
-            )) {
-
+            } else if (record.contains(" | LOSS | ")) {
                 losses++;
-
-            } else if (record.contains(
-                    " | EXPIRED | "
-            )) {
-
+            } else if (record.contains(" | EXPIRED | ")) {
                 expired++;
             }
         }
     }
-
-    /*
-     * ========================================================
-     * ACTIVE TRADES
-     * ========================================================
-     */
 
     private void loadActiveSignals() {
 
@@ -772,10 +656,7 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-            prices.put(
-                    symbol,
-                    0.0
-            );
+            prices.put(symbol, 0.0);
 
             candleData.put(
                     symbol,
@@ -794,31 +675,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * ========================================================
-     * BUTTONS
-     * ========================================================
-     */
-
     private void setupButtons() {
 
-        Button tf5 =
-                findViewById(R.id.tf5);
-
-        Button tf15 =
-                findViewById(R.id.tf15);
-
-        Button tf30 =
-                findViewById(R.id.tf30);
-
-        Button tf1h =
-                findViewById(R.id.tf1h);
-
-        Button tf4h =
-                findViewById(R.id.tf4h);
-
-        Button tf1d =
-                findViewById(R.id.tf1d);
+        Button tf5 = findViewById(R.id.tf5);
+        Button tf15 = findViewById(R.id.tf15);
+        Button tf30 = findViewById(R.id.tf30);
+        Button tf1h = findViewById(R.id.tf1h);
+        Button tf4h = findViewById(R.id.tf4h);
+        Button tf1d = findViewById(R.id.tf1d);
 
         Button marketGold =
                 findViewById(R.id.marketGold);
@@ -836,76 +700,37 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.marketNzd);
 
         tf5.setOnClickListener(v ->
-                selectTimeframe(
-                        "5min",
-                        "5M"
-                )
-        );
+                selectTimeframe("5min", "5M"));
 
         tf15.setOnClickListener(v ->
-                selectTimeframe(
-                        "15min",
-                        "15M"
-                )
-        );
+                selectTimeframe("15min", "15M"));
 
         tf30.setOnClickListener(v ->
-                selectTimeframe(
-                        "30min",
-                        "30M"
-                )
-        );
+                selectTimeframe("30min", "30M"));
 
         tf1h.setOnClickListener(v ->
-                selectTimeframe(
-                        "1h",
-                        "1H"
-                )
-        );
+                selectTimeframe("1h", "1H"));
 
         tf4h.setOnClickListener(v ->
-                selectTimeframe(
-                        "4h",
-                        "4H"
-                )
-        );
+                selectTimeframe("4h", "4H"));
 
         tf1d.setOnClickListener(v ->
-                selectTimeframe(
-                        "1day",
-                        "1D"
-                )
-        );
+                selectTimeframe("1day", "1D"));
 
         marketGold.setOnClickListener(v ->
-                selectMarket(
-                        "XAU/USD"
-                )
-        );
+                selectMarket("XAU/USD"));
 
         marketEur.setOnClickListener(v ->
-                selectMarket(
-                        "EUR/USD"
-                )
-        );
+                selectMarket("EUR/USD"));
 
         marketGbp.setOnClickListener(v ->
-                selectMarket(
-                        "GBP/USD"
-                )
-        );
+                selectMarket("GBP/USD"));
 
         marketJpy.setOnClickListener(v ->
-                selectMarket(
-                        "USD/JPY"
-                )
-        );
+                selectMarket("USD/JPY"));
 
         marketNzd.setOnClickListener(v ->
-                selectMarket(
-                        "NZD/USD"
-                )
-        );
+                selectMarket("NZD/USD"));
 
         refreshButton.setOnClickListener(v -> {
 
@@ -924,9 +749,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            refreshSignals(
-                    apiKey
-            );
+            refreshSignals(apiKey);
 
             Toast.makeText(
                     MainActivity.this,
@@ -935,8 +758,8 @@ public class MainActivity extends AppCompatActivity {
             ).show();
         });
 
-        copyButton.setOnClickListener(v ->
-                copyBestSignal()
+        copyButton.setOnClickListener(
+                v -> copyBestSignal()
         );
     }
 
@@ -944,8 +767,22 @@ public class MainActivity extends AppCompatActivity {
             String interval,
             String display) {
 
-        selectedTimeframe =
-                interval;
+        selectedTimeframe = interval;
+
+        /*
+         * Save the selected timeframe so the background
+         * monitor uses the same timeframe.
+         */
+        getSharedPreferences(
+                PREFS_NAME,
+                MODE_PRIVATE
+        )
+                .edit()
+                .putString(
+                        PREF_TIMEFRAME,
+                        interval
+                )
+                .apply();
 
         for (String symbol : SYMBOLS) {
 
@@ -988,20 +825,16 @@ public class MainActivity extends AppCompatActivity {
         if (apiKey != null
                 && !apiKey.trim().isEmpty()) {
 
-            refreshSignals(
-                    apiKey
-            );
+            refreshSignals(apiKey);
         }
     }
 
     private void selectMarket(
             String symbol) {
 
-        selectedMarket =
-                symbol;
+        selectedMarket = symbol;
 
         updateScanner();
-
         updateChart();
 
         updated.setText(
@@ -1035,12 +868,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * ========================================================
-     * START SCANNER
-     * ========================================================
-     */
-
     private void startScanner(
             String apiKey) {
 
@@ -1063,11 +890,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (!prices.containsKey(symbol)) {
-
-                prices.put(
-                        symbol,
-                        0.0
-                );
+                prices.put(symbol, 0.0);
             }
 
             if (!candleData.containsKey(symbol)) {
@@ -1083,10 +906,7 @@ public class MainActivity extends AppCompatActivity {
                             new PairCallback(symbol)
                     );
 
-            clients.put(
-                    symbol,
-                    client
-            );
+            clients.put(symbol, client);
 
             client.candles(
                     symbol,
@@ -1102,12 +922,6 @@ public class MainActivity extends AppCompatActivity {
 
         updateScanner();
     }
-
-    /*
-     * ========================================================
-     * REFRESH
-     * ========================================================
-     */
 
     private void refreshSignals(
             String apiKey) {
@@ -1140,10 +954,7 @@ public class MainActivity extends AppCompatActivity {
                                 new PairCallback(symbol)
                         );
 
-                clients.put(
-                        symbol,
-                        newClient
-                );
+                clients.put(symbol, newClient);
 
                 newClient.candles(
                         symbol,
@@ -1158,12 +969,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
-    /*
-     * ========================================================
-     * MARKET STATUS
-     * ========================================================
-     */
 
     private void updateMarketStatus() {
 
@@ -1185,12 +990,6 @@ public class MainActivity extends AppCompatActivity {
                 )
         );
     }
-
-    /*
-     * ========================================================
-     * SCANNER
-     * ========================================================
-     */
 
     private void updateScanner() {
 
@@ -1222,23 +1021,18 @@ public class MainActivity extends AppCompatActivity {
                             ? prices.get(symbol)
                             : 0;
 
-            text.append(symbol)
-                    .append("\n");
+            text.append(symbol).append("\n");
 
             text.append(
                     "CURRENT SIGNAL: "
             )
-                    .append(
-                            result.action
-                    )
+                    .append(result.action)
                     .append("\n");
 
             text.append(
                     "Confidence: "
             )
-                    .append(
-                            result.confidence
-                    )
+                    .append(result.confidence)
                     .append("%\n");
 
             SignalResult active =
@@ -1250,13 +1044,9 @@ public class MainActivity extends AppCompatActivity {
                 text.append(
                         "ACTIVE TRADE: "
                 )
-                        .append(
-                                active.action
-                        )
+                        .append(active.action)
                         .append(" • ")
-                        .append(
-                                active.status
-                        )
+                        .append(active.status)
                         .append("\n");
             }
 
@@ -1346,20 +1136,12 @@ public class MainActivity extends AppCompatActivity {
             text.append("\n");
         }
 
-        scanner.setText(
-                text.toString()
-        );
+        scanner.setText(text.toString());
 
         findBestSignal();
 
         updatePerformance();
     }
-
-    /*
-     * ========================================================
-     * BEST CURRENT SIGNAL
-     * ========================================================
-     */
 
     private void findBestSignal() {
 
@@ -1389,19 +1171,14 @@ public class MainActivity extends AppCompatActivity {
                     || result.confidence
                     > bestResult.confidence) {
 
-                bestSymbol =
-                        symbol;
-
-                bestResult =
-                        result;
+                bestSymbol = symbol;
+                bestResult = result;
             }
         }
 
         if (bestResult == null) {
 
-            bestSignal.setText(
-                    "WAIT"
-            );
+            bestSignal.setText("WAIT");
 
             bestSignal.setTextColor(
                     Color.rgb(
@@ -1428,7 +1205,6 @@ public class MainActivity extends AppCompatActivity {
             );
 
             updateCurrentSignalStatus();
-
             updateChart();
 
             return;
@@ -1494,7 +1270,6 @@ public class MainActivity extends AppCompatActivity {
         bestDetails.setText(
                 String.format(
                         Locale.US,
-
                         "CURRENT MARKET SIGNAL\n\n"
                                 + "Market: %s\n"
                                 + "Timeframe: %s\n"
@@ -1506,40 +1281,30 @@ public class MainActivity extends AppCompatActivity {
                                 + "TP2: %s\n"
                                 + "TP3: %s\n\n"
                                 + "Signal Time: %s",
-
                         bestSymbol,
-
                         timeframeName(),
-
                         bestResult.action,
-
                         bestResult.confidence,
-
                         formatPrice(
                                 bestSymbol,
                                 bestResult.entry
                         ),
-
                         formatPrice(
                                 bestSymbol,
                                 bestResult.sl
                         ),
-
                         formatPrice(
                                 bestSymbol,
                                 bestResult.tp1
                         ),
-
                         formatPrice(
                                 bestSymbol,
                                 bestResult.tp2
                         ),
-
                         formatPrice(
                                 bestSymbol,
                                 bestResult.tp3
                         ),
-
                         formatSignalTime(
                                 bestResult.signalTimeMillis
                         )
@@ -1547,15 +1312,8 @@ public class MainActivity extends AppCompatActivity {
         );
 
         updateCurrentSignalStatus();
-
         updateChart();
     }
-
-    /*
-     * ========================================================
-     * CURRENT SIGNAL STATUS
-     * ========================================================
-     */
 
     private void updateCurrentSignalStatus() {
 
@@ -1632,12 +1390,6 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    /*
-     * ========================================================
-     * PERFORMANCE
-     * ========================================================
-     */
-
     private void updatePerformance() {
 
         int total =
@@ -1660,21 +1412,15 @@ public class MainActivity extends AppCompatActivity {
         performanceSummary.setText(
                 String.format(
                         Locale.US,
-
                         "WIN RATE: %.1f%%\n\n"
                                 + "WINS: %d\n"
                                 + "LOSSES: %d\n"
                                 + "OPEN: %d\n"
                                 + "EXPIRED: %d",
-
                         winRate,
-
                         wins,
-
                         losses,
-
                         open,
-
                         expired
                 )
         );
@@ -1699,12 +1445,6 @@ public class MainActivity extends AppCompatActivity {
         return count;
     }
 
-    /*
-     * ========================================================
-     * ACTIVE TRADE RESULT TRACKING
-     * ========================================================
-     */
-
     private void checkActiveTrade(
             String symbol,
             double price) {
@@ -1728,9 +1468,7 @@ public class MainActivity extends AppCompatActivity {
         int oldTarget =
                 trade.highestTargetReached;
 
-        trade.updateStatus(
-                price
-        );
+        trade.updateStatus(price);
 
         String newStatus =
                 trade.status;
@@ -1792,18 +1530,14 @@ public class MainActivity extends AppCompatActivity {
             String symbol,
             SignalResult trade) {
 
-        signalStorage.removeActiveSignal(
-                symbol
-        );
+        signalStorage.removeActiveSignal(symbol);
 
         signalStorage.saveSignal(
                 symbol,
                 trade
         );
 
-        activeTrades.remove(
-                symbol
-        );
+        activeTrades.remove(symbol);
 
         signalHistory.add(
                 0,
@@ -1820,12 +1554,6 @@ public class MainActivity extends AppCompatActivity {
             );
         }
     }
-
-    /*
-     * ========================================================
-     * CREATE NEW CURRENT SIGNAL
-     * ========================================================
-     */
 
     private void processCurrentSignal(
             String symbol,
@@ -1867,9 +1595,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (previousDirection.equals(
-                newDirection
-        )) {
+        if (previousDirection.equals(newDirection)) {
 
             results.put(
                     symbol,
@@ -1957,12 +1683,6 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    /*
-     * ========================================================
-     * HISTORY DISPLAY
-     * ========================================================
-     */
-
     private void updateHistoryDisplay() {
 
         if (signalHistory.isEmpty()) {
@@ -2028,12 +1748,6 @@ public class MainActivity extends AppCompatActivity {
                 + result.resultReason;
     }
 
-    /*
-     * ========================================================
-     * TIME
-     * ========================================================
-     */
-
     private String formatSignalTime(
             long millis) {
 
@@ -2048,17 +1762,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         return format.format(
-                new java.util.Date(
-                        millis
-                )
+                new java.util.Date(millis)
         );
     }
-
-    /*
-     * ========================================================
-     * COPY
-     * ========================================================
-     */
 
     private void copyBestSignal() {
 
@@ -2139,9 +1845,7 @@ public class MainActivity extends AppCompatActivity {
                         text
                 );
 
-        clipboard.setPrimaryClip(
-                clip
-        );
+        clipboard.setPrimaryClip(clip);
 
         Toast.makeText(
                 this,
@@ -2149,12 +1853,6 @@ public class MainActivity extends AppCompatActivity {
                 Toast.LENGTH_SHORT
         ).show();
     }
-
-    /*
-     * ========================================================
-     * PRICE FORMAT
-     * ========================================================
-     */
 
     private String formatPrice(
             String symbol,
@@ -2189,27 +1887,17 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    /*
-     * ========================================================
-     * TWELVE DATA CALLBACK
-     * ========================================================
-     */
-
     private class PairCallback
             implements TwelveDataClient.Callback {
 
         private final String symbol;
 
-        PairCallback(
-                String symbol) {
-
-            this.symbol =
-                    symbol;
+        PairCallback(String symbol) {
+            this.symbol = symbol;
         }
 
         @Override
-        public void price(
-                double price) {
+        public void price(double price) {
 
             runOnUiThread(() -> {
 
@@ -2224,7 +1912,6 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 updateScanner();
-
                 updateChart();
 
                 updated.setText(
@@ -2247,9 +1934,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             List<Candle> copy =
-                    new ArrayList<>(
-                            candles
-                    );
+                    new ArrayList<>(candles);
 
             TwelveDataClient liveClient =
                     clients.get(symbol);
@@ -2281,7 +1966,6 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 updateScanner();
-
                 updateChart();
 
                 updated.setText(
@@ -2294,34 +1978,24 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public void error(
-                String error) {
+        public void error(String error) {
 
-            runOnUiThread(() -> {
-
-                updated.setText(
-                        symbol
-                                + ": "
-                                + error
-                );
-            });
+            runOnUiThread(() ->
+                    updated.setText(
+                            symbol
+                                    + ": "
+                                    + error
+                    )
+            );
         }
     }
-
-    /*
-     * ========================================================
-     * CLEANUP
-     * ========================================================
-     */
 
     @Override
     protected void onDestroy() {
 
         super.onDestroy();
 
-        handler.removeCallbacksAndMessages(
-                null
-        );
+        handler.removeCallbacksAndMessages(null);
 
         for (TwelveDataClient client :
                 clients.values()) {
