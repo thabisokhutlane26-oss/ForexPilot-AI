@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -40,4 +41,8 @@ dependencies {
 
     // Chart library
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    // Firebase Authentication
+    implementation platform('com.google.firebase:firebase-bom:34.2.0')
+    implementation 'com.google.firebase:firebase-auth'
 }
