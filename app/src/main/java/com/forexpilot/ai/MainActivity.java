@@ -20,6 +20,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -27,17 +28,45 @@ import com.google.firebase.auth.FirebaseAuth;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.time.DayOfWeek;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
+
+    private static final String PREFS_NAME = "ForexPilotSettings";
+    private static final String PREF_SELECTED_TIMEFRAME = "selected_timeframe";
+
+    private static final String PREF_SIGNAL_DATE = "signal_date";
+    private static final String PREF_DAILY_SIGNAL_COUNT = "daily_signal_count";
+
+    /*
+     * Chart cache
+     *
+     * Candle values are real values received from Twelve Data.
+     * They are stored locally so the last market session remains
+     * visible when the forex market is closed.
+     */
+    private static final String PREF_CHART_CACHE_PREFIX = "chart_cache_";
+    private static final String PREF_CHART_CACHE_TIME_PREFIX = "chart_cache_time_";
+    private static final int MAX_CACHED_CANDLES = 100;
+
+    private static final int MAX_DAILY_SIGNALS = 2;
+
+    private static final String[] SYMBOLS = {
+            "XAU/USD",
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "NZD/USD"
+    };
 
     private TextView title;
     private TextView market;
@@ -47,7 +76,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView bestDetails;
     private TextView confirmation;
     private TextView updated;
-
     private TextView performanceSummary;
     private TextView signalStatus;
     private TextView signalTime;
@@ -58,102 +86,105 @@ public class MainActivity extends AppCompatActivity {
     private Button copyButton;
     private Button logoutButton;
 
-    private WebView candleChart;
+    private Button candleChart;
 
-    private boolean chartReady = false;
+    private Button tf5;
+    private Button tf15;
+    private Button tf30;
+    private Button tf1h;
+    private Button tf4h;
+    private Button tf1d;
 
-    private final Handler handler =
-            new Handler(Looper.getMainLooper());
+    private Button marketGold;
+    private Button marketEur;
+    private Button marketGbp;
+    private Button marketJpy;
+    private Button marketNzd;
 
-    private final Map<String, TwelveDataClient> clients =
-            new LinkedHashMap<>();
+    private WebView chartWebView;
 
-    private final Map<String, SignalResult> results =
-            new LinkedHashMap<>();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private final Map<String, SignalResult> currentSignals =
+            new HashMap<>();
 
     private final Map<String, SignalResult> activeTrades =
-            new LinkedHashMap<>();
+            new HashMap<>();
 
-    private final Map<String, Double> prices =
-            new LinkedHashMap<>();
+    private final Map<String, Double> latestPrices =
+            new HashMap<>();
 
     private final Map<String, List<Candle>> candleData =
-            new LinkedHashMap<>();
+            new HashMap<>();
 
-    private final Map<String, String> lastMarketDirection =
-            new LinkedHashMap<>();
+    private final Map<String, TwelveDataClient> liveClients =
+            new HashMap<>();
 
-    private final Map<String, Boolean> reversalWaiting =
-            new LinkedHashMap<>();
-
-    private final List<String> signalHistory =
-            new ArrayList<>();
-
+    private SharedPreferences preferences;
     private SignalStorage signalStorage;
 
     private FirebaseAuth firebaseAuth;
 
-    private static final String[] SYMBOLS = {
-            "XAU/USD",
-            "EUR/USD",
-            "GBP/USD",
-            "USD/JPY",
-            "NZD/USD"
-    };
-
-    private static final String PREFS_NAME =
-            "ForexPilotSettings";
-
-    private static final String PREF_TIMEFRAME =
-            "selected_timeframe";
-
-    /*
-     * =========================================================
-     * DAILY NEW SIGNAL PROTECTION
-     * =========================================================
-     */
-
-    private static final int MAX_DAILY_SIGNALS = 2;
-
-    private static final String PREF_SIGNAL_DATE =
-            "signal_date";
-
-    private static final String PREF_DAILY_SIGNAL_COUNT =
-            "daily_signal_count";
-
-    private String selectedTimeframe = "5min";
+    private String selectedTimeframe = "15min";
     private String selectedMarket = "ALL";
 
-    private String bestSymbol = null;
-    private SignalResult bestResult = null;
+    private String chartSymbol = "XAU/USD";
 
-    private static final long REFRESH_INTERVAL =
-            5 * 60 * 1000L;
+    private boolean chartReady = false;
+    private boolean scannerRunning = false;
 
-    private static final int
-            NOTIFICATION_PERMISSION_REQUEST = 1001;
-
-    private int wins = 0;
-    private int losses = 0;
-    private int expired = 0;
+    private final Runnable refreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshSignals();
+            handler.postDelayed(this, 5 * 60 * 1000L);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setContentView(R.layout.activity_main);
+        setContentView(com.forexpilot.ai.R.layout.activity_main);
 
-        SharedPreferences preferences =
-                getSharedPreferences(
-                        PREFS_NAME,
-                        MODE_PRIVATE
-                );
+        preferences = getSharedPreferences(
+                PREFS_NAME,
+                MODE_PRIVATE
+        );
 
-        selectedTimeframe =
-                preferences.getString(
-                        PREF_TIMEFRAME,
-                        "5min"
-                );
+        signalStorage = new SignalStorage(this);
+
+        firebaseAuth = FirebaseAuth.getInstance();
+
+        selectedTimeframe = preferences.getString(
+                PREF_SELECTED_TIMEFRAME,
+                "15min"
+        );
+
+        bindViews();
+        setupChart();
+        setupButtons();
+
+        loadActiveSignals();
+
+        /*
+         * Load the last real candle data immediately.
+         * This allows the chart to remain visible while
+         * the forex market is closed.
+         */
+        loadCachedCandleData();
+
+        updateMarketStatus();
+        updateChart();
+
+        requestNotificationPermission();
+
+        startScanner();
+
+        handler.post(refreshRunnable);
+    }
+
+    private void bindViews() {
 
         title = findViewById(R.id.title);
         market = findViewById(R.id.market);
@@ -163,255 +194,313 @@ public class MainActivity extends AppCompatActivity {
         bestDetails = findViewById(R.id.bestDetails);
         confirmation = findViewById(R.id.confirmation);
         updated = findViewById(R.id.updated);
+        performanceSummary = findViewById(R.id.performanceSummary);
+        signalStatus = findViewById(R.id.signalStatus);
+        signalTime = findViewById(R.id.signalTime);
+        signalResult = findViewById(R.id.signalResult);
+        history = findViewById(R.id.history);
 
-        performanceSummary =
-                findViewById(R.id.performanceSummary);
+        refreshButton = findViewById(R.id.refreshButton);
+        copyButton = findViewById(R.id.copyButton);
+        logoutButton = findViewById(R.id.logoutButton);
 
-        signalStatus =
-                findViewById(R.id.signalStatus);
+        candleChart = findViewById(R.id.candleChart);
 
-        signalTime =
-                findViewById(R.id.signalTime);
+        tf5 = findViewById(R.id.tf5);
+        tf15 = findViewById(R.id.tf15);
+        tf30 = findViewById(R.id.tf30);
+        tf1h = findViewById(R.id.tf1h);
+        tf4h = findViewById(R.id.tf4h);
+        tf1d = findViewById(R.id.tf1d);
 
-        signalResult =
-                findViewById(R.id.signalResult);
+        marketGold = findViewById(R.id.marketGold);
+        marketEur = findViewById(R.id.marketEur);
+        marketGbp = findViewById(R.id.marketGbp);
+        marketJpy = findViewById(R.id.marketJpy);
+        marketNzd = findViewById(R.id.marketNzd);
 
-        history =
-                findViewById(R.id.history);
+        chartWebView = findViewById(R.id.candleChart);
+    }
 
-        refreshButton =
-                findViewById(R.id.refreshButton);
+    private void setupButtons() {
 
-        copyButton =
-                findViewById(R.id.copyButton);
+        if (refreshButton != null) {
+            refreshButton.setOnClickListener(v -> {
+                updateMarketStatus();
 
-        logoutButton =
-                findViewById(R.id.logoutButton);
-
-        candleChart =
-                findViewById(R.id.candleChart);
-
-        signalStorage =
-                new SignalStorage(this);
-
-        firebaseAuth =
-                FirebaseAuth.getInstance();
-
-        resetDailyCounterIfNeeded();
-
-        loadSavedHistory();
-        loadActiveSignals();
-
-        title.setText("ForexPilot AI");
-
-        setupChart();
-        setupButtons();
-        updateMarketStatus();
-        updatePerformance();
-
-        String apiKey =
-                BuildConfig.TWELVE_DATA_API_KEY;
-
-        if (apiKey == null
-                || apiKey.trim().isEmpty()) {
-
-            scanner.setText(
-                    "API KEY REQUIRED\n\n"
-                            + "Add your Twelve Data API key "
-                            + "to GitHub Secrets."
-            );
-
-            bestSignal.setText("WAIT");
-
-            bestSignal.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
-                    )
-            );
-
-            confirmation.setText(
-                    "WAITING FOR MARKET DATA"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
-                    )
-            );
-
-            bestDetails.setText(
-                    "No live market data available."
-            );
-
-            updated.setText(
-                    "Waiting for API key..."
-            );
-
-            return;
+                if (isForexWeekdayOpen()) {
+                    refreshSignals();
+                } else {
+                    updateChart();
+                    Toast.makeText(
+                            this,
+                            "Market closed • showing last real market data",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                }
+            });
         }
 
-        requestNotificationPermissionIfNeeded();
+        if (copyButton != null) {
+            copyButton.setOnClickListener(v -> copyCurrentSignal());
+        }
 
-        startBackgroundMonitor();
+        if (logoutButton != null) {
+            logoutButton.setOnClickListener(v -> logout());
+        }
 
-        startScanner(apiKey);
+        if (tf5 != null) {
+            tf5.setOnClickListener(v -> selectTimeframe("5min"));
+        }
 
-        handler.postDelayed(
-                new Runnable() {
-                    @Override
-                    public void run() {
+        if (tf15 != null) {
+            tf15.setOnClickListener(v -> selectTimeframe("15min"));
+        }
 
-                        updateMarketStatus();
+        if (tf30 != null) {
+            tf30.setOnClickListener(v -> selectTimeframe("30min"));
+        }
 
-                        resetDailyCounterIfNeeded();
+        if (tf1h != null) {
+            tf1h.setOnClickListener(v -> selectTimeframe("1h"));
+        }
 
-                        handler.postDelayed(
-                                this,
-                                30000L
-                        );
-                    }
-                },
-                30000L
-        );
+        if (tf4h != null) {
+            tf4h.setOnClickListener(v -> selectTimeframe("4h"));
+        }
 
-        handler.postDelayed(
-                new Runnable() {
-                    @Override
-                    public void run() {
+        if (tf1d != null) {
+            tf1d.setOnClickListener(v -> selectTimeframe("1day"));
+        }
 
-                        refreshSignals(apiKey);
+        if (marketGold != null) {
+            marketGold.setOnClickListener(v -> selectMarket("XAU/USD"));
+        }
 
-                        handler.postDelayed(
-                                this,
-                                REFRESH_INTERVAL
-                        );
-                    }
-                },
-                REFRESH_INTERVAL
+        if (marketEur != null) {
+            marketEur.setOnClickListener(v -> selectMarket("EUR/USD"));
+        }
+
+        if (marketGbp != null) {
+            marketGbp.setOnClickListener(v -> selectMarket("GBP/USD"));
+        }
+
+        if (marketJpy != null) {
+            marketJpy.setOnClickListener(v -> selectMarket("USD/JPY"));
+        }
+
+        if (marketNzd != null) {
+            marketNzd.setOnClickListener(v -> selectMarket("NZD/USD"));
+        }
+
+        updateTimeframeButtons();
+        updateMarketButtons();
+    }
+
+    private void selectTimeframe(String timeframe) {
+
+        selectedTimeframe = timeframe;
+
+        preferences.edit()
+                .putString(
+                        PREF_SELECTED_TIMEFRAME,
+                        timeframe
+                )
+                .apply();
+
+        /*
+         * The cache key contains the timeframe, so switching
+         * timeframe loads the correct saved candles.
+         */
+        loadCachedCandleData();
+
+        updateTimeframeButtons();
+        updateChart();
+
+        if (isForexWeekdayOpen()) {
+            refreshSignals();
+        } else {
+            updateMarketStatus();
+        }
+    }
+
+    private void selectMarket(String symbol) {
+
+        selectedMarket = symbol;
+        chartSymbol = symbol;
+
+        /*
+         * Load cached candles for the newly selected pair.
+         */
+        loadCachedCandleData();
+
+        updateMarketButtons();
+        updateChart();
+
+        if (isForexWeekdayOpen()) {
+            refreshSignals();
+        }
+    }
+
+    private void updateTimeframeButtons() {
+
+        setButtonState(tf5, "5M", "5min");
+        setButtonState(tf15, "15M", "15min");
+        setButtonState(tf30, "30M", "30min");
+        setButtonState(tf1h, "1H", "1h");
+        setButtonState(tf4h, "4H", "4h");
+        setButtonState(tf1d, "1D", "1day");
+    }
+
+    private void setButtonState(
+            Button button,
+            String text,
+            String timeframe
+    ) {
+
+        if (button == null) return;
+
+        button.setText(text);
+
+        if (timeframe.equals(selectedTimeframe)) {
+            button.setTextColor(Color.WHITE);
+        } else {
+            button.setTextColor(Color.LTGRAY);
+        }
+    }
+
+    private void updateMarketButtons() {
+
+        setMarketButtonState(marketGold, "XAU/USD", "XAU/USD");
+        setMarketButtonState(marketEur, "EUR/USD", "EUR/USD");
+        setMarketButtonState(marketGbp, "GBP/USD", "GBP/USD");
+        setMarketButtonState(marketJpy, "USD/JPY", "USD/JPY");
+        setMarketButtonState(marketNzd, "NZD/USD", "NZD/USD");
+    }
+
+    private void setMarketButtonState(
+            Button button,
+            String text,
+            String symbol
+    ) {
+
+        if (button == null) return;
+
+        button.setText(text);
+
+        if (symbol.equals(selectedMarket)) {
+            button.setTextColor(Color.WHITE);
+        } else {
+            button.setTextColor(Color.LTGRAY);
+        }
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * MARKET CLOCK
+     * ---------------------------------------------------------
+     */
+
+    private boolean isForexWeekdayOpen() {
+
+        ZonedDateTime ny =
+                java.time.Instant.now()
+                        .atZone(ZoneId.of("America/New_York"));
+
+        DayOfWeek day = ny.getDayOfWeek();
+
+        if (day == DayOfWeek.SATURDAY) {
+            return false;
+        }
+
+        if (day == DayOfWeek.SUNDAY) {
+            return false;
+        }
+
+        return MarketClock.isForexOpen(
+                java.time.Instant.now()
         );
     }
 
-    private void requestNotificationPermissionIfNeeded() {
+    private void updateMarketStatus() {
 
-        if (Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.TIRAMISU) {
+        boolean open = isForexWeekdayOpen();
 
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED) {
+        if (market != null) {
 
-                requestPermissions(
-                        new String[]{
-                                Manifest.permission.POST_NOTIFICATIONS
-                        },
-                        NOTIFICATION_PERMISSION_REQUEST
+            if (open) {
+                market.setText("FOREX MARKET: OPEN");
+                market.setTextColor(Color.GREEN);
+            } else {
+                market.setText("FOREX MARKET: CLOSED");
+                market.setTextColor(Color.RED);
+            }
+        }
+
+        if (session != null) {
+
+            if (open) {
+                session.setText(
+                        "Session: " +
+                                MarketClock.session(
+                                        java.time.Instant.now()
+                                )
+                );
+            } else {
+                session.setText(
+                        "Weekend / market closed"
+                );
+            }
+        }
+
+        if (scanner != null) {
+
+            if (open) {
+                scanner.setText("Scanner: ACTIVE");
+            } else {
+                scanner.setText(
+                        "Scanner: PAUSED • NO NEW SIGNALS"
+                );
+            }
+        }
+
+        if (open) {
+            showDailySignalStatus();
+        } else {
+            if (confirmation != null) {
+                confirmation.setText(
+                        "MARKET CLOSED • NEW SIGNALS PAUSED"
                 );
             }
         }
     }
 
-    private void startBackgroundMonitor() {
-
-        Intent serviceIntent =
-                new Intent(
-                        this,
-                        ForexMonitorService.class
-                );
-
-        if (Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.O) {
-
-            ContextCompat.startForegroundService(
-                    this,
-                    serviceIntent
-            );
-
-        } else {
-
-            startService(
-                    serviceIntent
-            );
-        }
-    }
-
     /*
-     * =========================================================
-     * MARKET SIGNAL PROTECTION
-     * =========================================================
+     * ---------------------------------------------------------
+     * DAILY SIGNAL LIMIT
+     * ---------------------------------------------------------
      */
 
-    private boolean isNewSignalAllowed() {
+    private String todayKey() {
 
-        resetDailyCounterIfNeeded();
-
-        Instant now =
-                Instant.now();
-
-        /*
-         * MarketClock controls the actual
-         * forex opening/closing window.
-         */
-        if (!MarketClock.isForexOpen(now)) {
-            return false;
-        }
-
-        /*
-         * Explicit Monday-Friday protection.
-         */
-        ZonedDateTime newYork =
-                now.atZone(
-                        ZoneId.of(
-                                "America/New_York"
-                        )
-                );
-
-        DayOfWeek day =
-                newYork.getDayOfWeek();
-
-        if (day == DayOfWeek.SATURDAY
-                || day == DayOfWeek.SUNDAY) {
-
-            return false;
-        }
-
-        /*
-         * Maximum two NEW signals per day.
-         */
-        return getDailySignalCount()
-                < MAX_DAILY_SIGNALS;
+        return new SimpleDateFormat(
+                "yyyy-MM-dd",
+                Locale.US
+        ).format(new Date());
     }
 
     private void resetDailyCounterIfNeeded() {
 
-        String today =
-                ZonedDateTime.now(
-                        ZoneId.of(
-                                "Africa/Johannesburg"
-                        )
-                )
-                .toLocalDate()
-                .toString();
+        String today = todayKey();
 
-        SharedPreferences prefs =
-                getSharedPreferences(
-                        PREFS_NAME,
-                        MODE_PRIVATE
-                );
-
-        String savedDate =
-                prefs.getString(
-                        PREF_SIGNAL_DATE,
-                        ""
-                );
+        String savedDate = preferences.getString(
+                PREF_SIGNAL_DATE,
+                ""
+        );
 
         if (!today.equals(savedDate)) {
 
-            prefs.edit()
+            preferences.edit()
                     .putString(
                             PREF_SIGNAL_DATE,
                             today
@@ -426,13 +515,9 @@ public class MainActivity extends AppCompatActivity {
 
     private int getDailySignalCount() {
 
-        SharedPreferences prefs =
-                getSharedPreferences(
-                        PREFS_NAME,
-                        MODE_PRIVATE
-                );
+        resetDailyCounterIfNeeded();
 
-        return prefs.getInt(
+        return preferences.getInt(
                 PREF_DAILY_SIGNAL_COUNT,
                 0
         );
@@ -440,69 +525,772 @@ public class MainActivity extends AppCompatActivity {
 
     private void increaseDailySignalCount() {
 
-        SharedPreferences prefs =
-                getSharedPreferences(
-                        PREFS_NAME,
-                        MODE_PRIVATE
-                );
+        resetDailyCounterIfNeeded();
 
-        int current =
-                prefs.getInt(
+        int count =
+                preferences.getInt(
                         PREF_DAILY_SIGNAL_COUNT,
                         0
                 );
 
-        if (current >= MAX_DAILY_SIGNALS) {
-            return;
-        }
-
-        prefs.edit()
+        preferences.edit()
+                .putString(
+                        PREF_SIGNAL_DATE,
+                        todayKey()
+                )
                 .putInt(
                         PREF_DAILY_SIGNAL_COUNT,
-                        current + 1
+                        count + 1
                 )
                 .apply();
     }
 
+    private boolean isNewSignalAllowed() {
+
+        if (!isForexWeekdayOpen()) {
+            return false;
+        }
+
+        return getDailySignalCount() < MAX_DAILY_SIGNALS;
+    }
+
+    private void showDailySignalStatus() {
+
+        int count = getDailySignalCount();
+
+        if (confirmation != null) {
+
+            confirmation.setText(
+                    "Daily signals: " +
+                            count +
+                            "/" +
+                            MAX_DAILY_SIGNALS
+            );
+        }
+    }
+
     /*
-     * =========================================================
-     * INTERACTIVE TRADINGVIEW-STYLE CHART
-     * =========================================================
+     * ---------------------------------------------------------
+     * SCANNER
+     * ---------------------------------------------------------
+     */
+
+    private void startScanner() {
+
+        if (scannerRunning) {
+            return;
+        }
+
+        scannerRunning = true;
+
+        updateMarketStatus();
+
+        /*
+         * IMPORTANT:
+         * Do not request Twelve Data candles while the
+         * forex market is closed.
+         *
+         * Existing active trades are still tracked.
+         */
+        if (!isForexWeekdayOpen()) {
+            updateChart();
+            startLivePriceConnections();
+            return;
+        }
+
+        refreshSignals();
+
+        startLivePriceConnections();
+    }
+
+    private void refreshSignals() {
+
+        updateMarketStatus();
+
+        /*
+         * Closed market = no new candle request.
+         * Existing trades continue through live tracking.
+         */
+        if (!isForexWeekdayOpen()) {
+
+            updateChart();
+
+            if (updated != null) {
+                updated.setText(
+                        "LAST REAL MARKET DATA • MARKET CLOSED"
+                );
+            }
+
+            return;
+        }
+
+        resetDailyCounterIfNeeded();
+
+        /*
+         * If today's two signals have already been used,
+         * do not spend more Twelve Data requests searching
+         * for additional new signals.
+         */
+        if (getDailySignalCount() >= MAX_DAILY_SIGNALS) {
+
+            if (confirmation != null) {
+                confirmation.setText(
+                        "2/2 DAILY SIGNALS USED • WAITING FOR TOMORROW"
+                );
+            }
+
+            updateChart();
+            return;
+        }
+
+        String apiKey = getApiKey();
+
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+
+            if (confirmation != null) {
+                confirmation.setText(
+                        "API KEY REQUIRED"
+                );
+            }
+
+            return;
+        }
+
+        List<String> symbolsToScan =
+                new ArrayList<>();
+
+        if ("ALL".equals(selectedMarket)) {
+
+            for (String symbol : SYMBOLS) {
+                symbolsToScan.add(symbol);
+            }
+
+        } else {
+            symbolsToScan.add(selectedMarket);
+        }
+
+        for (String symbol : symbolsToScan) {
+
+            if (!isNewSignalAllowed()) {
+                break;
+            }
+
+            TwelveDataClient client =
+                    new TwelveDataClient(
+                            new PairCallback(symbol)
+                    );
+
+            client.candles(
+                    symbol,
+                    selectedTimeframe,
+                    apiKey
+            );
+        }
+
+        /*
+         * Keep the chart updated using the data already available.
+         */
+        updateChart();
+    }
+
+    private String getApiKey() {
+
+        return preferences.getString(
+                "api_key",
+                ""
+        );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * TWELVE DATA CALLBACK
+     * ---------------------------------------------------------
+     */
+
+    private class PairCallback
+            implements TwelveDataClient.Callback {
+
+        private final String symbol;
+
+        PairCallback(String symbol) {
+            this.symbol = symbol;
+        }
+
+        @Override
+        public void price(double price) {
+
+            runOnUiThread(() -> {
+
+                if (price > 0) {
+                    latestPrices.put(
+                            symbol,
+                            price
+                    );
+                }
+
+                checkActiveTrade(
+                        symbol,
+                        price
+                );
+
+                updateBestSignalDisplay();
+
+                if (symbol.equals(chartSymbol)) {
+                    updateChart();
+                }
+            });
+        }
+
+        @Override
+        public void candles(List<Candle> candles) {
+
+            if (candles == null || candles.isEmpty()) {
+                return;
+            }
+
+            List<Candle> copy =
+                    new ArrayList<>(candles);
+
+            candleData.put(
+                    symbol,
+                    copy
+            );
+
+            /*
+             * NEW:
+             * Save the REAL Twelve Data candles locally.
+             */
+            saveCachedCandles(
+                    symbol,
+                    copy
+            );
+
+            runOnUiThread(() -> {
+
+                processCurrentSignal(
+                        symbol,
+                        copy
+                );
+
+                updateChart();
+
+                if (updated != null) {
+                    updated.setText(
+                            "LIVE MARKET DATA • " +
+                                    symbol
+                    );
+                }
+            });
+        }
+
+        @Override
+        public void error(String message) {
+
+            runOnUiThread(() -> {
+
+                if (updated != null) {
+                    updated.setText(
+                            "DATA ERROR • " + message
+                    );
+                }
+            });
+        }
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * SIGNAL PROCESSING
+     * ---------------------------------------------------------
+     */
+
+    private void processCurrentSignal(
+            String symbol,
+            List<Candle> candles
+    ) {
+
+        if (candles == null ||
+                candles.size() < 60) {
+            return;
+        }
+
+        double livePrice =
+                candles.get(
+                        candles.size() - 1
+                ).close;
+
+        latestPrices.put(
+                symbol,
+                livePrice
+        );
+
+        SignalResult result =
+                SignalEngine.analyze(
+                        candles,
+                        livePrice
+                );
+
+        if (result == null) {
+            return;
+        }
+
+        currentSignals.put(
+                symbol,
+                result
+        );
+
+        /*
+         * WAIT is not a new signal.
+         */
+        if (!"BUY".equals(result.action)
+                && !"SELL".equals(result.action)) {
+
+            updateBestSignalDisplay();
+            return;
+        }
+
+        /*
+         * Existing active trade:
+         * don't create another trade for the same pair.
+         */
+        SignalResult existing =
+                activeTrades.get(symbol);
+
+        if (existing != null &&
+                existing.isOpen()) {
+
+            existing.updateStatus(livePrice);
+
+            signalStorage.saveActiveSignal(
+                    symbol,
+                    existing
+            );
+
+            updateBestSignalDisplay();
+            return;
+        }
+
+        /*
+         * Hard protection:
+         * market must be open and daily limit must
+         * still allow another new signal.
+         */
+        if (!isNewSignalAllowed()) {
+
+            updateBestSignalDisplay();
+            return;
+        }
+
+        createNewMarketSignal(
+                symbol,
+                result
+        );
+    }
+
+    private void createNewMarketSignal(
+            String symbol,
+            SignalResult result
+    ) {
+
+        if (result == null) {
+            return;
+        }
+
+        if (!"BUY".equals(result.action)
+                && !"SELL".equals(result.action)) {
+            return;
+        }
+
+        if (!isNewSignalAllowed()) {
+            return;
+        }
+
+        SignalResult existing =
+                activeTrades.get(symbol);
+
+        if (existing != null &&
+                existing.isOpen()) {
+            return;
+        }
+
+        SignalResult trade =
+                new SignalResult(
+                        result.action,
+                        result.entry,
+                        result.sl,
+                        result.tp1,
+                        result.tp2,
+                        result.tp3,
+                        result.confidence,
+                        result.signalTimeMillis,
+                        "OPEN",
+                        "",
+                        result.highestTargetReached
+                );
+
+        activeTrades.put(
+                symbol,
+                trade
+        );
+
+        currentSignals.put(
+                symbol,
+                trade
+        );
+
+        signalStorage.saveActiveSignal(
+                symbol,
+                trade
+        );
+
+        signalStorage.saveSignal(
+                symbol,
+                trade
+        );
+
+        increaseDailySignalCount();
+
+        updateBestSignalDisplay();
+        updateHistoryDisplay();
+        showDailySignalStatus();
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * ACTIVE TRADE TRACKING
+     * ---------------------------------------------------------
+     */
+
+    private void checkActiveTrade(
+            String symbol,
+            double currentPrice
+    ) {
+
+        if (currentPrice <= 0) {
+            return;
+        }
+
+        SignalResult trade =
+                activeTrades.get(symbol);
+
+        if (trade == null) {
+            return;
+        }
+
+        if (!trade.isOpen()) {
+            return;
+        }
+
+        String oldStatus =
+                trade.status;
+
+        trade.updateStatus(
+                currentPrice
+        );
+
+        signalStorage.saveActiveSignal(
+                symbol,
+                trade
+        );
+
+        currentSignals.put(
+                symbol,
+                trade
+        );
+
+        if (!oldStatus.equals(trade.status)) {
+
+            if (trade.isCompleted()) {
+
+                signalStorage.removeActiveSignal(
+                        symbol
+                );
+            }
+        }
+
+        updateBestSignalDisplay();
+        updateHistoryDisplay();
+    }
+
+    private void loadActiveSignals() {
+
+        for (String symbol : SYMBOLS) {
+
+            candleData.put(
+                    symbol,
+                    new ArrayList<>()
+            );
+        }
+
+        Map<String, SignalResult> saved =
+                signalStorage.getActiveSignals();
+
+        if (saved != null) {
+
+            activeTrades.clear();
+            activeTrades.putAll(saved);
+
+            currentSignals.putAll(saved);
+        }
+
+        updateHistoryDisplay();
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * CHART CACHE
+     * ---------------------------------------------------------
+     */
+
+    private String chartCacheKey(
+            String symbol
+    ) {
+
+        String safeSymbol =
+                symbol
+                        .replace("/", "_")
+                        .replace(" ", "_");
+
+        String safeTimeframe =
+                selectedTimeframe
+                        .replace("/", "_")
+                        .replace(" ", "_");
+
+        return PREF_CHART_CACHE_PREFIX +
+                safeSymbol +
+                "_" +
+                safeTimeframe;
+    }
+
+    private String chartCacheTimeKey(
+            String symbol
+    ) {
+
+        String safeSymbol =
+                symbol
+                        .replace("/", "_")
+                        .replace(" ", "_");
+
+        String safeTimeframe =
+                selectedTimeframe
+                        .replace("/", "_")
+                        .replace(" ", "_");
+
+        return PREF_CHART_CACHE_TIME_PREFIX +
+                safeSymbol +
+                "_" +
+                safeTimeframe;
+    }
+
+    private void saveCachedCandles(
+            String symbol,
+            List<Candle> candles
+    ) {
+
+        if (candles == null ||
+                candles.isEmpty()) {
+            return;
+        }
+
+        try {
+
+            int start =
+                    Math.max(
+                            0,
+                            candles.size()
+                                    - MAX_CACHED_CANDLES
+                    );
+
+            JSONArray array =
+                    new JSONArray();
+
+            for (int i = start;
+                 i < candles.size();
+                 i++) {
+
+                Candle c =
+                        candles.get(i);
+
+                JSONObject object =
+                        new JSONObject();
+
+                object.put(
+                        "open",
+                        c.open
+                );
+
+                object.put(
+                        "high",
+                        c.high
+                );
+
+                object.put(
+                        "low",
+                        c.low
+                );
+
+                object.put(
+                        "close",
+                        c.close
+                );
+
+                array.put(object);
+            }
+
+            preferences.edit()
+                    .putString(
+                            chartCacheKey(symbol),
+                            array.toString()
+                    )
+                    .putLong(
+                            chartCacheTimeKey(symbol),
+                            System.currentTimeMillis()
+                    )
+                    .apply();
+
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void loadCachedCandleData() {
+
+        for (String symbol : SYMBOLS) {
+
+            List<Candle> candles =
+                    loadCachedCandles(symbol);
+
+            candleData.put(
+                    symbol,
+                    candles
+            );
+        }
+    }
+
+    private List<Candle> loadCachedCandles(
+            String symbol
+    ) {
+
+        List<Candle> result =
+                new ArrayList<>();
+
+        String json =
+                preferences.getString(
+                        chartCacheKey(symbol),
+                        ""
+                );
+
+        if (json == null ||
+                json.trim().isEmpty()) {
+
+            return result;
+        }
+
+        try {
+
+            JSONArray array =
+                    new JSONArray(json);
+
+            for (int i = 0;
+                 i < array.length();
+                 i++) {
+
+                JSONObject object =
+                        array.getJSONObject(i);
+
+                double open =
+                        object.getDouble("open");
+
+                double high =
+                        object.getDouble("high");
+
+                double low =
+                        object.getDouble("low");
+
+                double close =
+                        object.getDouble("close");
+
+                result.add(
+                        new Candle(
+                                open,
+                                high,
+                                low,
+                                close
+                        )
+                );
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        return result;
+    }
+
+    private long getCachedCandlesSavedAt(
+            String symbol
+    ) {
+
+        return preferences.getLong(
+                chartCacheTimeKey(symbol),
+                0L
+        );
+    }
+
+    private String formatCachedTime(
+            long millis
+    ) {
+
+        if (millis <= 0) {
+            return "";
+        }
+
+        try {
+
+            SimpleDateFormat format =
+                    new SimpleDateFormat(
+                            "dd MMM yyyy HH:mm",
+                            Locale.US
+                    );
+
+            return format.format(
+                    new Date(millis)
+            );
+
+        } catch (Exception e) {
+
+            return "";
+        }
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * WEBVIEW LIGHTWEIGHT CHART
+     * ---------------------------------------------------------
      */
 
     private void setupChart() {
 
-        candleChart.setBackgroundColor(
-                Color.rgb(
-                        11,
-                        15,
-                        20
-                )
-        );
+        if (chartWebView == null) {
+            return;
+        }
 
         WebSettings settings =
-                candleChart.getSettings();
+                chartWebView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setBuiltInZoomControls(false);
-        settings.setDisplayZoomControls(false);
+        settings.setLoadsImagesAutomatically(true);
 
-        candleChart.setVerticalScrollBarEnabled(false);
-        candleChart.setHorizontalScrollBarEnabled(false);
-        candleChart.setOverScrollMode(
-                WebView.OVER_SCROLL_NEVER
+        chartWebView.setBackgroundColor(
+                Color.rgb(11, 15, 20)
         );
 
-        candleChart.setWebViewClient(
+        chartWebView.setWebViewClient(
                 new WebViewClient() {
 
                     @Override
                     public void onPageFinished(
                             WebView view,
-                            String url) {
+                            String url
+                    ) {
 
                         super.onPageFinished(
                                 view,
@@ -516,7 +1304,7 @@ public class MainActivity extends AppCompatActivity {
                 }
         );
 
-        candleChart.loadDataWithBaseURL(
+        chartWebView.loadDataWithBaseURL(
                 "https://www.tradingview.com/",
                 createChartHtml(),
                 "text/html",
@@ -527,284 +1315,292 @@ public class MainActivity extends AppCompatActivity {
 
     private String createChartHtml() {
 
-        return "<!DOCTYPE html>"
-                + "<html>"
-                + "<head>"
-                + "<meta name=\"viewport\" "
-                + "content=\"width=device-width, "
-                + "initial-scale=1.0, "
-                + "maximum-scale=1.0, "
-                + "user-scalable=no\">"
+        return "<!DOCTYPE html>" +
+                "<html>" +
+                "<head>" +
+                "<meta name='viewport' " +
+                "content='width=device-width, initial-scale=1.0'>" +
 
-                + "<script "
-                + "src=\"https://unpkg.com/"
-                + "lightweight-charts/"
-                + "dist/lightweight-charts."
-                + "standalone.production.js\">"
-                + "</script>"
+                "<style>" +
+                "html,body{" +
+                "margin:0;" +
+                "padding:0;" +
+                "width:100%;" +
+                "height:100%;" +
+                "background:#0B0F14;" +
+                "overflow:hidden;" +
+                "}" +
 
-                + "<style>"
+                "#chart{" +
+                "width:100%;" +
+                "height:100%;" +
+                "}" +
 
-                + "html,body{"
-                + "margin:0;"
-                + "padding:0;"
-                + "width:100%;"
-                + "height:100%;"
-                + "overflow:hidden;"
-                + "background:#0B0F14;"
-                + "font-family:Arial,sans-serif;"
-                + "}"
+                "#status{" +
+                "position:absolute;" +
+                "top:8px;" +
+                "left:10px;" +
+                "z-index:10;" +
+                "font-family:Arial;" +
+                "font-size:11px;" +
+                "color:#AAB4C3;" +
+                "background:rgba(11,15,20,.75);" +
+                "padding:4px 7px;" +
+                "border-radius:4px;" +
+                "}" +
+                "</style>" +
 
-                + "#chart{"
-                + "position:absolute;"
-                + "left:0;"
-                + "top:0;"
-                + "right:0;"
-                + "bottom:26px;"
-                + "}"
+                "<script src='" +
+                "https://unpkg.com/lightweight-charts/" +
+                "dist/lightweight-charts.standalone.production.js" +
+                "'></script>" +
 
-                + "#watermark{"
-                + "position:absolute;"
-                + "left:8px;"
-                + "bottom:4px;"
-                + "font-size:10px;"
-                + "color:#6F7885;"
-                + "z-index:10;"
-                + "}"
+                "</head>" +
 
-                + "#symbol{"
-                + "position:absolute;"
-                + "left:10px;"
-                + "top:8px;"
-                + "z-index:10;"
-                + "color:#FFFFFF;"
-                + "font-size:13px;"
-                + "font-weight:bold;"
-                + "background:rgba(11,15,20,0.75);"
-                + "padding:5px 8px;"
-                + "border-radius:4px;"
-                + "}"
+                "<body>" +
 
-                + "</style>"
-                + "</head>"
+                "<div id='status'>" +
+                "Loading chart..." +
+                "</div>" +
 
-                + "<body>"
+                "<div id='chart'></div>" +
 
-                + "<div id=\"chart\"></div>"
-                + "<div id=\"symbol\">ForexPilot AI</div>"
+                "<script>" +
 
-                + "<div id=\"watermark\">"
-                + "Charts by TradingView"
-                + "</div>"
+                "var chart=null;" +
+                "var candleSeries=null;" +
 
-                + "<script>"
+                "function setStatus(text){" +
+                "document.getElementById('status').innerText=text;" +
+                "}" +
 
-                + "let chart=null;"
-                + "let candleSeries=null;"
-                + "let priceLines=[];"
+                "function initChart(){" +
 
-                + "function createTradingChart(){"
+                "if(typeof LightweightCharts==='undefined'){" +
+                "setStatus('CHART LIBRARY NOT AVAILABLE');" +
+                "return;" +
+                "}" +
 
-                + "const container="
-                + "document.getElementById('chart');"
+                "chart=LightweightCharts.createChart(" +
+                "document.getElementById('chart'),{" +
 
-                + "chart="
-                + "LightweightCharts.createChart("
-                + "container,{"
+                "layout:{" +
+                "background:{color:'#0B0F14'}," +
+                "textColor:'#B8C2D1'" +
+                "}," +
 
-                + "layout:{"
-                + "background:{color:'#0B0F14'},"
-                + "textColor:'#AAB4C3'"
-                + "},"
+                "grid:{" +
+                "vertLines:{color:'#18202B'}," +
+                "horzLines:{color:'#18202B'}" +
+                "}," +
 
-                + "grid:{"
-                + "vertLines:{color:'#151C25'},"
-                + "horzLines:{color:'#151C25'}"
-                + "},"
+                "rightPriceScale:{" +
+                "borderColor:'#26303C'" +
+                "}," +
 
-                + "crosshair:{"
-                + "mode:LightweightCharts."
-                + "CrosshairMode.Normal"
-                + "},"
+                "timeScale:{" +
+                "borderColor:'#26303C'," +
+                "timeVisible:true," +
+                "secondsVisible:false" +
+                "}," +
 
-                + "rightPriceScale:{"
-                + "borderColor:'#27313D',"
-                + "scaleMargins:{"
-                + "top:0.08,"
-                + "bottom:0.08"
-                + "}"
-                + "},"
+                "crosshair:{" +
+                "mode:1" +
+                "}" +
 
-                + "timeScale:{"
-                + "borderColor:'#27313D',"
-                + "timeVisible:true,"
-                + "secondsVisible:false,"
-                + "rightOffset:5,"
-                + "barSpacing:7,"
-                + "minBarSpacing:2"
-                + "},"
+                "});" +
 
-                + "handleScroll:{"
-                + "mouseWheel:true,"
-                + "pressedMouseMove:true,"
-                + "horzTouchDrag:true"
-                + "},"
+                "if(chart.addSeries && " +
+                "LightweightCharts.CandlestickSeries){" +
 
-                + "handleScale:{"
-                + "mouseWheel:true,"
-                + "pinch:true,"
-                + "axisPressedMouseMove:true"
-                + "},"
+                "candleSeries=chart.addSeries(" +
+                "LightweightCharts.CandlestickSeries,{" +
 
-                + "autoSize:true,"
-                + "attributionLogo:true"
-                + "});"
+                "upColor:'#16C784'," +
+                "downColor:'#EA3943'," +
+                "borderUpColor:'#16C784'," +
+                "borderDownColor:'#EA3943'," +
+                "wickUpColor:'#16C784'," +
+                "wickDownColor:'#EA3943'" +
 
-                + "candleSeries="
-                + "chart.addSeries("
-                + "LightweightCharts.CandlestickSeries,"
-                + "{"
+                "});" +
 
-                + "upColor:'#4CFF78',"
-                + "downColor:'#FF5050',"
-                + "borderUpColor:'#4CFF78',"
-                + "borderDownColor:'#FF5050',"
-                + "wickUpColor:'#4CFF78',"
-                + "wickDownColor:'#FF5050'"
+                "}else if(chart.addCandlestickSeries){" +
 
-                + "});"
+                "candleSeries=" +
+                "chart.addCandlestickSeries({" +
 
-                + "}"
+                "upColor:'#16C784'," +
+                "downColor:'#EA3943'," +
+                "borderUpColor:'#16C784'," +
+                "borderDownColor:'#EA3943'," +
+                "wickUpColor:'#16C784'," +
+                "wickDownColor:'#EA3943'" +
 
-                + "function clearPriceLines(){"
+                "});" +
 
-                + "if(!candleSeries)return;"
+                "}else{" +
 
-                + "for(let i=0;i<priceLines.length;i++){"
-                + "candleSeries.removePriceLine("
-                + "priceLines[i]);"
-                + "}"
+                "setStatus('CANDLE CHART NOT SUPPORTED');" +
+                "return;" +
 
-                + "priceLines=[];"
-                + "}"
+                "}" +
 
-                + "function addPriceLine("
-                + "value,title,color){"
+                "setStatus('Chart ready');" +
 
-                + "if(!candleSeries||"
-                + "!value||value<=0)return;"
+                "}" +
 
-                + "const line="
-                + "candleSeries.createPriceLine({"
+                "function setChartData(" +
+                "data,symbol,entry,sl,tp1,tp2,tp3,statusText){" +
 
-                + "price:value,"
-                + "color:color,"
-                + "lineWidth:1,"
-                + "lineStyle:"
-                + "LightweightCharts.LineStyle.Dashed,"
-                + "axisLabelVisible:true,"
-                + "title:title"
-                + "});"
+                "if(!candleSeries){" +
+                "setStatus('Chart is loading...');" +
+                "return;" +
+                "}" +
 
-                + "priceLines.push(line);"
-                + "}"
+                "if(!data || data.length===0){" +
+                "setStatus('NO CACHED MARKET DATA');" +
+                "return;" +
+                "}" +
 
-                + "function setChartData("
-                + "data,symbol,entry,sl,tp1,tp2,tp3){"
+                "candleSeries.setData(data);" +
 
-                + "if(!chart||!candleSeries)return;"
+                "if(entry>0){" +
 
-                + "document.getElementById('symbol')"
-                + ".innerText="
-                + "symbol;"
+                "candleSeries.createPriceLine({" +
+                "price:entry," +
+                "color:'#FFFFFF'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'ENTRY'" +
+                "});" +
 
-                + "candleSeries.setData(data);"
+                "}" +
 
-                + "clearPriceLines();"
+                "if(sl>0){" +
 
-                + "addPriceLine("
-                + "entry,'ENTRY','#FFFFFF');"
+                "candleSeries.createPriceLine({" +
+                "price:sl," +
+                "color:'#EA3943'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'SL'" +
+                "});" +
 
-                + "addPriceLine("
-                + "sl,'SL','#FF5050');"
+                "}" +
 
-                + "addPriceLine("
-                + "tp1,'TP1','#4CFF78');"
+                "if(tp1>0){" +
 
-                + "addPriceLine("
-                + "tp2,'TP2','#4CFF78');"
+                "candleSeries.createPriceLine({" +
+                "price:tp1," +
+                "color:'#16C784'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'TP1'" +
+                "});" +
 
-                + "addPriceLine("
-                + "tp3,'TP3','#4CFF78');"
+                "}" +
 
-                + "chart.timeScale().fitContent();"
-                + "}"
+                "if(tp2>0){" +
 
-                + "function resizeChart(){"
+                "candleSeries.createPriceLine({" +
+                "price:tp2," +
+                "color:'#16C784'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'TP2'" +
+                "});" +
 
-                + "if(chart){"
-                + "chart.timeScale().applyOptions({"
-                + "rightOffset:5"
-                + "});"
-                + "}"
+                "}" +
 
-                + "}"
+                "if(tp3>0){" +
 
-                + "window.addEventListener("
-                + "'resize',resizeChart);"
+                "candleSeries.createPriceLine({" +
+                "price:tp3," +
+                "color:'#16C784'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'TP3'" +
+                "});" +
 
-                + "createTradingChart();"
+                "}" +
 
-                + "</script>"
+                "chart.timeScale().fitContent();" +
 
-                + "</body>"
-                + "</html>";
+                "setStatus(" +
+                "statusText + ' • ' + symbol" +
+                ");" +
+
+                "}" +
+
+                "window.onload=function(){" +
+                "initChart();" +
+                "};" +
+
+                "</script>" +
+
+                "</body>" +
+                "</html>";
     }
 
     private void updateChart() {
 
-        if (!chartReady
-                || candleChart == null) {
+        if (!chartReady ||
+                chartWebView == null) {
             return;
         }
 
-        String chartSymbol =
-                getChartSymbol();
+        if (chartSymbol == null ||
+                chartSymbol.trim().isEmpty()) {
 
-        if (chartSymbol == null) {
-            return;
+            chartSymbol = "XAU/USD";
         }
 
         List<Candle> candles =
                 candleData.get(chartSymbol);
 
-        if (candles == null
-                || candles.isEmpty()) {
+        if (candles == null ||
+                candles.isEmpty()) {
+
+            chartWebView.evaluateJavascript(
+                    "setStatus('NO CACHED MARKET DATA');",
+                    null
+            );
 
             return;
         }
-
-        SignalResult result =
-                results.get(chartSymbol);
 
         try {
 
             JSONArray array =
                     new JSONArray();
 
-            long intervalSeconds =
-                    timeframeSeconds();
-
             long nowSeconds =
                     System.currentTimeMillis()
                             / 1000L;
 
-            long firstTime =
-                    nowSeconds
-                            - (
-                            (long) candles.size()
-                                    * intervalSeconds
+            long intervalSeconds =
+                    timeframeSeconds(
+                            selectedTimeframe
                     );
+
+            /*
+             * Candle.java currently contains OHLC only,
+             * not a timestamp.
+             *
+             * For the cached chart we preserve the real
+             * OHLC values and place them at the appropriate
+             * timeframe spacing.
+             */
+            long firstTime =
+                    nowSeconds -
+                            ((long) candles.size()
+                                    * intervalSeconds);
 
             for (int i = 0;
                  i < candles.size();
@@ -818,11 +1614,9 @@ public class MainActivity extends AppCompatActivity {
 
                 item.put(
                         "time",
-                        firstTime
-                                + (
-                                (long) i
-                                        * intervalSeconds
-                        )
+                        firstTime +
+                                ((long) i *
+                                        intervalSeconds)
                 );
 
                 item.put(
@@ -848,16 +1642,20 @@ public class MainActivity extends AppCompatActivity {
                 array.put(item);
             }
 
+            SignalResult result =
+                    currentSignals.get(
+                            chartSymbol
+                    );
+
             double entry = 0;
             double sl = 0;
             double tp1 = 0;
             double tp2 = 0;
             double tp3 = 0;
 
-            if (result != null
-                    && !"WAIT".equals(
-                    result.action
-            )) {
+            if (result != null &&
+                    ("BUY".equals(result.action)
+                            || "SELL".equals(result.action))) {
 
                 entry = result.entry;
                 sl = result.sl;
@@ -866,496 +1664,163 @@ public class MainActivity extends AppCompatActivity {
                 tp3 = result.tp3;
             }
 
-            String javascript =
-                    "setChartData("
-                            + array.toString()
-                            + ","
-                            + JSONObject.quote(
+            long cachedAt =
+                    getCachedCandlesSavedAt(
                             chartSymbol
-                    )
-                            + ","
-                            + entry
-                            + ","
-                            + sl
-                            + ","
-                            + tp1
-                            + ","
-                            + tp2
-                            + ","
-                            + tp3
-                            + ");";
+                    );
 
-            candleChart.evaluateJavascript(
+            boolean marketOpen =
+                    isForexWeekdayOpen();
+
+            String chartStatus;
+
+            if (marketOpen) {
+
+                chartStatus =
+                        "LIVE MARKET DATA";
+
+            } else {
+
+                String cachedTime =
+                        formatCachedTime(
+                                cachedAt
+                        );
+
+                if (cachedTime.isEmpty()) {
+
+                    chartStatus =
+                            "LAST MARKET DATA";
+
+                } else {
+
+                    chartStatus =
+                            "LAST REAL DATA • " +
+                                    cachedTime;
+                }
+            }
+
+            String jsData =
+                    array.toString()
+                            .replace(
+                                    "\\",
+                                    "\\\\"
+                            )
+                            .replace(
+                                    "'",
+                                    "\\'"
+                            );
+
+            String jsSymbol =
+                    chartSymbol
+                            .replace(
+                                    "'",
+                                    "\\'"
+                            );
+
+            String jsStatus =
+                    chartStatus
+                            .replace(
+                                    "'",
+                                    "\\'"
+                            );
+
+            String javascript =
+                    "setChartData(" +
+                            jsData +
+                            ",'" +
+                            jsSymbol +
+                            "'," +
+                            entry +
+                            "," +
+                            sl +
+                            "," +
+                            tp1 +
+                            "," +
+                            tp2 +
+                            "," +
+                            tp3 +
+                            ",'" +
+                            jsStatus +
+                            "');";
+
+            chartWebView.evaluateJavascript(
                     javascript,
                     null
             );
 
         } catch (Exception e) {
 
-            updated.setText(
-                    "Chart error: "
-                            + e.getMessage()
+            chartWebView.evaluateJavascript(
+                    "setStatus('CHART DATA ERROR');",
+                    null
             );
         }
     }
 
-    private long timeframeSeconds() {
+    private long timeframeSeconds(
+            String timeframe
+    ) {
 
-        switch (selectedTimeframe) {
-
-            case "15min":
-                return 15L * 60L;
-
-            case "30min":
-                return 30L * 60L;
-
-            case "1h":
-                return 60L * 60L;
-
-            case "4h":
-                return 4L * 60L * 60L;
-
-            case "1day":
-                return 24L * 60L * 60L;
-
-            default:
-                return 5L * 60L;
+        if ("5min".equals(timeframe)) {
+            return 5L * 60L;
         }
+
+        if ("15min".equals(timeframe)) {
+            return 15L * 60L;
+        }
+
+        if ("30min".equals(timeframe)) {
+            return 30L * 60L;
+        }
+
+        if ("1h".equals(timeframe)) {
+            return 60L * 60L;
+        }
+
+        if ("4h".equals(timeframe)) {
+            return 4L * 60L * 60L;
+        }
+
+        if ("1day".equals(timeframe)) {
+            return 24L * 60L * 60L;
+        }
+
+        return 15L * 60L;
     }
 
     private String getChartSymbol() {
 
-        if (!"ALL".equals(selectedMarket)) {
+        if (selectedMarket != null &&
+                !"ALL".equals(selectedMarket)) {
+
             return selectedMarket;
         }
 
-        if (bestSymbol != null) {
-            return bestSymbol;
-        }
-
-        return "XAU/USD";
+        return chartSymbol == null
+                ? "XAU/USD"
+                : chartSymbol;
     }
 
     /*
-     * =========================================================
-     * HISTORY
-     * =========================================================
+     * ---------------------------------------------------------
+     * LIVE PRICE CONNECTIONS
+     * ---------------------------------------------------------
      */
 
-    private void loadSavedHistory() {
-
-        signalHistory.clear();
-
-        List<String> saved =
-                signalStorage.getHistory();
-
-        signalHistory.addAll(saved);
-
-        wins = 0;
-        losses = 0;
-        expired = 0;
-
-        for (String record : saved) {
-
-            if (record.contains(
-                    " | WIN | "
-            )) {
-
-                wins++;
-
-            } else if (record.contains(
-                    " | LOSS | "
-            )) {
-
-                losses++;
-
-            } else if (record.contains(
-                    " | EXPIRED | "
-            )) {
-
-                expired++;
-            }
-        }
-    }
-
-    private void loadActiveSignals() {
-
-        Map<String, SignalResult> active =
-                signalStorage.getActiveSignals();
-
-        for (String symbol : SYMBOLS) {
-
-            SignalResult result =
-                    active.get(symbol);
-
-            if (result != null
-                    && result.isOpen()) {
-
-                activeTrades.put(
-                        symbol,
-                        result
-                );
-            }
-
-            results.put(
-                    symbol,
-                    new SignalResult(
-                            "WAIT",
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0
-                    )
-            );
-
-            prices.put(
-                    symbol,
-                    0.0
-            );
-
-            candleData.put(
-                    symbol,
-                    new ArrayList<>()
-            );
-
-            lastMarketDirection.put(
-                    symbol,
-                    "WAIT"
-            );
-
-            reversalWaiting.put(
-                    symbol,
-                    false
-            );
-        }
-    }
-
-    /*
-     * =========================================================
-     * BUTTONS
-     * =========================================================
-     */
-
-    private void setupButtons() {
-
-        Button tf5 =
-                findViewById(R.id.tf5);
-
-        Button tf15 =
-                findViewById(R.id.tf15);
-
-        Button tf30 =
-                findViewById(R.id.tf30);
-
-        Button tf1h =
-                findViewById(R.id.tf1h);
-
-        Button tf4h =
-                findViewById(R.id.tf4h);
-
-        Button tf1d =
-                findViewById(R.id.tf1d);
-
-        Button marketGold =
-                findViewById(R.id.marketGold);
-
-        Button marketEur =
-                findViewById(R.id.marketEur);
-
-        Button marketGbp =
-                findViewById(R.id.marketGbp);
-
-        Button marketJpy =
-                findViewById(R.id.marketJpy);
-
-        Button marketNzd =
-                findViewById(R.id.marketNzd);
-
-        tf5.setOnClickListener(v ->
-                selectTimeframe(
-                        "5min",
-                        "5M"
-                )
-        );
-
-        tf15.setOnClickListener(v ->
-                selectTimeframe(
-                        "15min",
-                        "15M"
-                )
-        );
-
-        tf30.setOnClickListener(v ->
-                selectTimeframe(
-                        "30min",
-                        "30M"
-                )
-        );
-
-        tf1h.setOnClickListener(v ->
-                selectTimeframe(
-                        "1h",
-                        "1H"
-                )
-        );
-
-        tf4h.setOnClickListener(v ->
-                selectTimeframe(
-                        "4h",
-                        "4H"
-                )
-        );
-
-        tf1d.setOnClickListener(v ->
-                selectTimeframe(
-                        "1day",
-                        "1D"
-                )
-        );
-
-        marketGold.setOnClickListener(v ->
-                selectMarket("XAU/USD")
-        );
-
-        marketEur.setOnClickListener(v ->
-                selectMarket("EUR/USD")
-        );
-
-        marketGbp.setOnClickListener(v ->
-                selectMarket("GBP/USD")
-        );
-
-        marketJpy.setOnClickListener(v ->
-                selectMarket("USD/JPY")
-        );
-
-        marketNzd.setOnClickListener(v ->
-                selectMarket("NZD/USD")
-        );
-
-        refreshButton.setOnClickListener(v -> {
-
-            String apiKey =
-                    BuildConfig.TWELVE_DATA_API_KEY;
-
-            if (apiKey == null
-                    || apiKey.trim().isEmpty()) {
-
-                Toast.makeText(
-                        MainActivity.this,
-                        "API key is missing.",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            refreshSignals(apiKey);
-
-            Toast.makeText(
-                    MainActivity.this,
-                    "Refreshing live market...",
-                    Toast.LENGTH_SHORT
-            ).show();
-        });
-
-        copyButton.setOnClickListener(
-                v -> copyBestSignal()
-        );
-
-        logoutButton.setOnClickListener(
-                v -> logout()
-        );
-    }
-
-    private void logout() {
-
-        firebaseAuth.signOut();
-
-        Toast.makeText(
-                this,
-                "Logged out",
-                Toast.LENGTH_SHORT
-        ).show();
-
-        Intent intent =
-                new Intent(
-                        MainActivity.this,
-                        LoginActivity.class
-                );
-
-        intent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
-        );
-
-        startActivity(intent);
-
-        finish();
-    }
-
-    private void selectTimeframe(
-            String interval,
-            String display) {
-
-        selectedTimeframe = interval;
-
-        getSharedPreferences(
-                PREFS_NAME,
-                MODE_PRIVATE
-        )
-                .edit()
-                .putString(
-                        PREF_TIMEFRAME,
-                        interval
-                )
-                .apply();
-
-        for (String symbol : SYMBOLS) {
-
-            results.put(
-                    symbol,
-                    new SignalResult(
-                            "WAIT",
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0
-                    )
-            );
-
-            lastMarketDirection.put(
-                    symbol,
-                    "WAIT"
-            );
-
-            reversalWaiting.put(
-                    symbol,
-                    false
-            );
-        }
-
-        bestSymbol = null;
-        bestResult = null;
-
-        updated.setText(
-                "Timeframe selected: "
-                        + display
-                        + " • Refreshing..."
-        );
+    private void startLivePriceConnections() {
 
         String apiKey =
-                BuildConfig.TWELVE_DATA_API_KEY;
+                getApiKey();
 
-        if (apiKey != null
-                && !apiKey.trim().isEmpty()) {
-
-            refreshSignals(apiKey);
-        }
-    }
-
-    private void selectMarket(
-            String symbol) {
-
-        selectedMarket = symbol;
-
-        updateScanner();
-        updateChart();
-
-        updated.setText(
-                symbol
-                        + " selected • "
-                        + timeframeName()
-        );
-    }
-
-    private String timeframeName() {
-
-        switch (selectedTimeframe) {
-
-            case "15min":
-                return "15M";
-
-            case "30min":
-                return "30M";
-
-            case "1h":
-                return "1H";
-
-            case "4h":
-                return "4H";
-
-            case "1day":
-                return "1D";
-
-            default:
-                return "5M";
-        }
-    }
-
-    /*
-     * =========================================================
-     * MARKET DATA
-     * =========================================================
-     */
-
-    private void startScanner(
-            String apiKey) {
-
-        /*
-         * Don't request candle data while the
-         * forex market is closed.
-         */
-        if (!isForexWeekdayOpen()) {
-
-            updateMarketStatus();
-
-            updated.setText(
-                    "MARKET CLOSED • "
-                            + "NEW SIGNALS PAUSED"
-            );
-
-            updateScanner();
-
+        if (apiKey == null ||
+                apiKey.trim().isEmpty()) {
             return;
         }
 
         for (String symbol : SYMBOLS) {
 
-            if (!results.containsKey(symbol)) {
-
-                results.put(
-                        symbol,
-                        new SignalResult(
-                                "WAIT",
-                                0,
-                                0,
-                                0,
-                                0,
-                                0,
-                                0
-                        )
-                );
-            }
-
-            if (!prices.containsKey(symbol)) {
-
-                prices.put(
-                        symbol,
-                        0.0
-                );
-            }
-
-            if (!candleData.containsKey(symbol)) {
-
-                candleData.put(
-                        symbol,
-                        new ArrayList<>()
-                );
+            if (liveClients.containsKey(symbol)) {
+                continue;
             }
 
             TwelveDataClient client =
@@ -1363,15 +1828,9 @@ public class MainActivity extends AppCompatActivity {
                             new PairCallback(symbol)
                     );
 
-            clients.put(
+            liveClients.put(
                     symbol,
                     client
-            );
-
-            client.candles(
-                    symbol,
-                    selectedTimeframe,
-                    apiKey
             );
 
             client.connect(
@@ -1379,1246 +1838,228 @@ public class MainActivity extends AppCompatActivity {
                     apiKey
             );
         }
-
-        updateScanner();
     }
 
-    private void refreshSignals(
-            String apiKey) {
+    private void closeLiveConnections() {
 
-        /*
-         * IMPORTANT:
-         *
-         * Do not request new candle data when
-         * the forex market is closed.
-         *
-         * This prevents unnecessary Twelve Data
-         * API usage while still allowing existing
-         * active trades to be tracked by price().
-         */
-        if (!MarketClock.isForexOpen(
-                Instant.now()
-        )) {
+        for (TwelveDataClient client :
+                liveClients.values()) {
 
-            runOnUiThread(() -> {
-
-                updateMarketStatus();
-
-                updated.setText(
-                        "MARKET CLOSED • "
-                                + "NEW SIGNALS PAUSED"
-                );
-            });
-
-            return;
+            try {
+                client.close();
+            } catch (Exception ignored) {
+            }
         }
 
-        /*
-         * Explicit Monday-Friday protection.
-         */
-        ZonedDateTime newYork =
-                Instant.now().atZone(
-                        ZoneId.of(
-                                "America/New_York"
-                        )
-                );
+        liveClients.clear();
+    }
 
-        DayOfWeek day =
-                newYork.getDayOfWeek();
+    /*
+     * ---------------------------------------------------------
+     * DISPLAY
+     * ---------------------------------------------------------
+     */
 
-        if (day == DayOfWeek.SATURDAY
-                || day == DayOfWeek.SUNDAY) {
+    private void updateBestSignalDisplay() {
 
-            runOnUiThread(() -> {
-
-                updateMarketStatus();
-
-                updated.setText(
-                        "WEEKEND • "
-                                + "NEW SIGNALS PAUSED"
-                );
-            });
-
-            return;
-        }
-
-        runOnUiThread(() ->
-                updated.setText(
-                        "Refreshing "
-                                + timeframeName()
-                                + " live market..."
-                )
-        );
+        SignalResult best = null;
+        String bestSymbol = null;
 
         for (String symbol : SYMBOLS) {
 
-            TwelveDataClient client =
-                    clients.get(symbol);
+            SignalResult result =
+                    currentSignals.get(symbol);
 
-            if (client != null) {
+            if (result == null) {
+                continue;
+            }
 
-                client.candles(
-                        symbol,
-                        selectedTimeframe,
-                        apiKey
+            if (best == null ||
+                    result.confidence >
+                            best.confidence) {
+
+                best = result;
+                bestSymbol = symbol;
+            }
+        }
+
+        if (best == null) {
+
+            if (bestSignal != null) {
+                bestSignal.setText("WAIT");
+            }
+
+            if (bestDetails != null) {
+                bestDetails.setText(
+                        "Waiting for market data"
+                );
+            }
+
+            return;
+        }
+
+        if (bestSignal != null) {
+
+            bestSignal.setText(
+                    best.action
+            );
+
+            if ("BUY".equals(best.action)) {
+
+                bestSignal.setTextColor(
+                        Color.GREEN
+                );
+
+            } else if ("SELL".equals(best.action)) {
+
+                bestSignal.setTextColor(
+                        Color.RED
                 );
 
             } else {
 
-                TwelveDataClient newClient =
-                        new TwelveDataClient(
-                                new PairCallback(symbol)
-                        );
-
-                clients.put(
-                        symbol,
-                        newClient
-                );
-
-                newClient.candles(
-                        symbol,
-                        selectedTimeframe,
-                        apiKey
-                );
-
-                newClient.connect(
-                        symbol,
-                        apiKey
+                bestSignal.setTextColor(
+                        Color.LTGRAY
                 );
             }
         }
-    }
 
-    private boolean isForexWeekdayOpen() {
+        if (bestDetails != null) {
 
-        Instant now =
-                Instant.now();
+            StringBuilder details =
+                    new StringBuilder();
 
-        if (!MarketClock.isForexOpen(now)) {
-            return false;
-        }
-
-        ZonedDateTime newYork =
-                now.atZone(
-                        ZoneId.of(
-                                "America/New_York"
-                        )
-                );
-
-        DayOfWeek day =
-                newYork.getDayOfWeek();
-
-        return day != DayOfWeek.SATURDAY
-                && day != DayOfWeek.SUNDAY;
-    }
-
-    private void updateMarketStatus() {
-
-        boolean open =
-                MarketClock.isForexOpen(
-                        Instant.now()
-                );
-
-        ZonedDateTime newYork =
-                Instant.now().atZone(
-                        ZoneId.of(
-                                "America/New_York"
-                        )
-                );
-
-        DayOfWeek day =
-                newYork.getDayOfWeek();
-
-        boolean weekday =
-                day != DayOfWeek.SATURDAY
-                        && day != DayOfWeek.SUNDAY;
-
-        boolean actuallyOpen =
-                open && weekday;
-
-        market.setText(
-                actuallyOpen
-                        ? "FOREX MARKET: OPEN"
-                        : "FOREX MARKET: CLOSED"
-        );
-
-        session.setText(
-                "Sessions: "
-                        + MarketClock.session(
-                        Instant.now()
-                )
-        );
-    }
-
-    /*
-     * =========================================================
-     * SCANNER
-     * =========================================================
-     */
-
-    private void updateScanner() {
-
-        StringBuilder text =
-                new StringBuilder();
-
-        text.append(
-                timeframeName()
-                        + " LIVE MARKET SCANNER\n\n"
-        );
-
-        for (String symbol : SYMBOLS) {
-
-            if (!"ALL".equals(selectedMarket)
-                    && !selectedMarket.equals(symbol)) {
-                continue;
-            }
-
-            SignalResult result =
-                    results.get(symbol);
-
-            if (result == null) {
-                continue;
-            }
-
-            double currentPrice =
-                    prices.containsKey(symbol)
-                            ? prices.get(symbol)
-                            : 0;
-
-            text.append(symbol)
-                    .append("\n");
-
-            text.append(
-                    "CURRENT SIGNAL: "
-            )
-                    .append(result.action)
-                    .append("\n");
-
-            text.append(
-                    "Confidence: "
-            )
-                    .append(result.confidence)
-                    .append("%\n");
-
-            SignalResult active =
-                    activeTrades.get(symbol);
-
-            if (active != null
-                    && active.isOpen()) {
-
-                text.append(
-                        "ACTIVE TRADE: "
-                )
-                        .append(active.action)
-                        .append(" • ")
-                        .append(active.status)
-                        .append("\n");
-            }
-
-            if (currentPrice > 0) {
-
-                text.append(
-                        "Live Price: "
-                )
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        currentPrice
-                                )
-                        )
-                        .append("\n");
-            }
-
-            if (!"WAIT".equals(result.action)
-                    && result.entry > 0) {
-
-                text.append(
-                        "Entry: "
-                )
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.entry
-                                )
-                        )
-                        .append("\n");
-
-                text.append(
-                        "SL: "
-                )
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.sl
-                                )
-                        )
-                        .append("\n");
-
-                text.append(
-                        "TP1: "
-                )
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.tp1
-                                )
-                        )
-                        .append("\n");
-
-                text.append(
-                        "TP2: "
-                )
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.tp2
-                                )
-                        )
-                        .append("\n");
-
-                text.append(
-                        "TP3: "
-                )
-                        .append(
-                                formatPrice(
-                                        symbol,
-                                        result.tp3
-                                )
-                        )
-                        .append("\n");
-
-                text.append(
-                        "Signal Time: "
-                )
-                        .append(
-                                formatSignalTime(
-                                        result.signalTimeMillis
-                                )
-                        )
-                        .append("\n");
-            }
-
-            text.append("\n");
-        }
-
-        scanner.setText(
-                text.toString()
-        );
-
-        findBestSignal();
-
-        updatePerformance();
-    }
-
-    private void findBestSignal() {
-
-        bestSymbol = null;
-        bestResult = null;
-
-        for (String symbol : SYMBOLS) {
-
-            if (!"ALL".equals(selectedMarket)
-                    && !selectedMarket.equals(symbol)) {
-                continue;
-            }
-
-            SignalResult result =
-                    results.get(symbol);
-
-            if (result == null) {
-                continue;
-            }
-
-            if ("WAIT".equals(result.action)) {
-                continue;
-            }
-
-            if (bestResult == null
-                    || result.confidence
-                    > bestResult.confidence) {
-
-                bestSymbol = symbol;
-                bestResult = result;
-            }
-        }
-
-        if (bestResult == null) {
-
-            bestSignal.setText("WAIT");
-
-            bestSignal.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
-                    )
+            details.append(
+                    bestSymbol
             );
 
-            confirmation.setText(
-                    "WAITING FOR CONFIRMATION"
+            details.append(
+                    "\n"
             );
 
-            confirmation.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
-                    )
+            details.append(
+                    "Timeframe: "
             );
+
+            details.append(
+                    selectedTimeframe
+            );
+
+            details.append(
+                    "\nConfidence: "
+            );
+
+            details.append(
+                    best.confidence
+            );
+
+            if ("BUY".equals(best.action)
+                    || "SELL".equals(best.action)) {
+
+                details.append(
+                        "%\nEntry: "
+                );
+
+                details.append(
+                        formatPrice(best.entry)
+                );
+
+                details.append(
+                        "\nStop Loss: "
+                );
+
+                details.append(
+                        formatPrice(best.sl)
+                );
+
+                details.append(
+                        "\nTP1: "
+                );
+
+                details.append(
+                        formatPrice(best.tp1)
+                );
+
+                details.append(
+                        "\nTP2: "
+                );
+
+                details.append(
+                        formatPrice(best.tp2)
+                );
+
+                details.append(
+                        "\nTP3: "
+                );
+
+                details.append(
+                        formatPrice(best.tp3)
+                );
+
+            } else {
+
+                details.append(
+                        "%\nNo confirmed setup"
+                );
+            }
 
             bestDetails.setText(
-                    "No confirmed current BUY or SELL setup."
-            );
-
-            updateCurrentSignalStatus();
-
-            updateChart();
-
-            return;
-        }
-
-        String action =
-                bestResult.action;
-
-        bestSignal.setText(
-                bestSymbol
-                        + " • "
-                        + action
-                        + " • "
-                        + bestResult.confidence
-                        + "%"
-        );
-
-        if ("BUY".equals(action)) {
-
-            bestSignal.setTextColor(
-                    Color.rgb(
-                            76,
-                            255,
-                            120
-                    )
-            );
-
-            confirmation.setText(
-                    "BUY CONFIRMED"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(
-                            76,
-                            255,
-                            120
-                    )
-            );
-
-        } else if ("SELL".equals(action)) {
-
-            bestSignal.setTextColor(
-                    Color.rgb(
-                            255,
-                            80,
-                            80
-                    )
-            );
-
-            confirmation.setText(
-                    "SELL CONFIRMED"
-            );
-
-            confirmation.setTextColor(
-                    Color.rgb(
-                            255,
-                            80,
-                            80
-                    )
+                    details.toString()
             );
         }
 
-        bestDetails.setText(
-                String.format(
-                        Locale.US,
-                        "CURRENT MARKET SIGNAL\n\n"
-                                + "Market: %s\n"
-                                + "Timeframe: %s\n"
-                                + "Signal: %s\n"
-                                + "Confidence: %d%%\n\n"
-                                + "Entry: %s\n"
-                                + "Stop Loss: %s\n"
-                                + "TP1: %s\n"
-                                + "TP2: %s\n"
-                                + "TP3: %s\n\n"
-                                + "Signal Time: %s",
-                        bestSymbol,
-                        timeframeName(),
-                        bestResult.action,
-                        bestResult.confidence,
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.entry
-                        ),
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.sl
-                        ),
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.tp1
-                        ),
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.tp2
-                        ),
-                        formatPrice(
-                                bestSymbol,
-                                bestResult.tp3
-                        ),
-                        formatSignalTime(
-                                bestResult.signalTimeMillis
-                        )
-                )
-        );
-
-        updateCurrentSignalStatus();
-
-        updateChart();
-    }
-
-    private void updateCurrentSignalStatus() {
-
-        if (bestResult == null) {
-
+        if (signalStatus != null) {
             signalStatus.setText(
-                    "WAITING FOR SIGNAL"
+                    best.status
             );
+        }
 
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
-                    )
-            );
+        if (signalTime != null) {
 
             signalTime.setText(
-                    "Signal time: --"
-            );
-
-            signalResult.setText(
-                    "Result: --"
-            );
-
-            return;
-        }
-
-        signalStatus.setText(
-                bestResult.action
-        );
-
-        if ("BUY".equals(
-                bestResult.action
-        )) {
-
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            76,
-                            255,
-                            120
-                    )
-            );
-
-        } else if ("SELL".equals(
-                bestResult.action
-        )) {
-
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            255,
-                            80,
-                            80
-                    )
-            );
-
-        } else {
-
-            signalStatus.setTextColor(
-                    Color.rgb(
-                            255,
-                            213,
-                            79
+                    new SimpleDateFormat(
+                            "dd MMM yyyy HH:mm",
+                            Locale.US
+                    ).format(
+                            new Date(
+                                    best.signalTimeMillis
+                            )
                     )
             );
         }
 
-        signalTime.setText(
-                "Signal time: "
-                        + formatSignalTime(
-                        bestResult.signalTimeMillis
-                )
-        );
+        if (signalResult != null) {
 
-        signalResult.setText(
-                "Current market setup • "
-                        + timeframeName()
-        );
-    }
+            if (best.resultReason == null ||
+                    best.resultReason.isEmpty()) {
 
-    /*
-     * =========================================================
-     * PERFORMANCE
-     * =========================================================
-     */
+                signalResult.setText(
+                        "Signal active"
+                );
 
-    private void updatePerformance() {
+            } else {
 
-        int total =
-                wins
-                        + losses
-                        + expired;
-
-        double winRate = 0;
-
-        if (total > 0) {
-
-            winRate =
-                    ((double) wins / total)
-                            * 100.0;
-        }
-
-        int open =
-                countOpenSignals();
-
-        performanceSummary.setText(
-                String.format(
-                        Locale.US,
-                        "WIN RATE: %.1f%%\n\n"
-                                + "WINS: %d\n"
-                                + "LOSSES: %d\n"
-                                + "OPEN: %d\n"
-                                + "EXPIRED: %d",
-                        winRate,
-                        wins,
-                        losses,
-                        open,
-                        expired
-                )
-        );
-
-        updateHistoryDisplay();
-    }
-
-    private int countOpenSignals() {
-
-        int count = 0;
-
-        for (SignalResult result :
-                activeTrades.values()) {
-
-            if (result != null
-                    && result.isOpen()) {
-
-                count++;
+                signalResult.setText(
+                        best.resultReason
+                );
             }
         }
 
-        return count;
-    }
+        /*
+         * Put chart on the best available signal pair.
+         */
+        if (bestSymbol != null &&
+                "ALL".equals(selectedMarket)) {
 
-    /*
-     * =========================================================
-     * TRADE TRACKING
-     * =========================================================
-     */
-
-    private void checkActiveTrade(
-            String symbol,
-            double price) {
-
-        if (price <= 0) {
-            return;
-        }
-
-        SignalResult trade =
-                activeTrades.get(symbol);
-
-        if (trade == null
-                || !trade.isOpen()) {
-
-            return;
-        }
-
-        String oldStatus =
-                trade.status;
-
-        int oldTarget =
-                trade.highestTargetReached;
-
-        trade.updateStatus(price);
-
-        String newStatus =
-                trade.status;
-
-        int newTarget =
-                trade.highestTargetReached;
-
-        if (oldStatus.equals(newStatus)
-                && oldTarget == newTarget) {
-
-            return;
-        }
-
-        if ("TP1 HIT".equals(newStatus)
-                || "TP2 HIT".equals(newStatus)) {
-
-            signalStorage.saveActiveSignal(
-                    symbol,
-                    trade
-            );
-
-            updateScanner();
-
-            return;
-        }
-
-        if ("WIN".equals(newStatus)) {
-
-            wins++;
-
-            completeTrade(
-                    symbol,
-                    trade
-            );
-
-        } else if ("LOSS".equals(newStatus)) {
-
-            losses++;
-
-            completeTrade(
-                    symbol,
-                    trade
-            );
-
-        } else if ("EXPIRED".equals(newStatus)) {
-
-            expired++;
-
-            completeTrade(
-                    symbol,
-                    trade
-            );
-        }
-
-        updatePerformance();
-    }
-
-    private void completeTrade(
-            String symbol,
-            SignalResult trade) {
-
-        signalStorage.removeActiveSignal(
-                symbol
-        );
-
-        signalStorage.saveSignal(
-                symbol,
-                trade
-        );
-
-        activeTrades.remove(symbol);
-
-        signalHistory.add(
-                0,
-                buildHistoryText(
-                        symbol,
-                        trade
-                )
-        );
-
-        if (signalHistory.size() > 50) {
-
-            signalHistory.remove(
-                    signalHistory.size() - 1
-            );
+            chartSymbol = bestSymbol;
+            updateChart();
         }
     }
 
-    /*
-     * =========================================================
-     * SIGNAL PROCESSING
-     * =========================================================
-     */
-
-    private void processCurrentSignal(
-            String symbol,
-            SignalResult analyzed) {
-
-        if (analyzed == null) {
-            return;
-        }
-
-        String newDirection =
-                analyzed.action;
-
-        String previousDirection =
-                lastMarketDirection.containsKey(
-                        symbol
-                )
-                        ? lastMarketDirection.get(symbol)
-                        : "WAIT";
-
-        if (previousDirection == null) {
-            previousDirection = "WAIT";
-        }
-
-        /*
-         * WAIT never creates a new signal.
-         */
-        if ("WAIT".equals(newDirection)) {
-
-            results.put(
-                    symbol,
-                    analyzed
-            );
-
-            return;
-        }
-
-        /*
-         * No new BUY/SELL while market is closed.
-         */
-        if (!isNewSignalAllowed()) {
-
-            results.put(
-                    symbol,
-                    new SignalResult(
-                            "WAIT",
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0
-                    )
-            );
-
-            return;
-        }
-
-        /*
-         * Existing active trades continue tracking.
-         * Never create a duplicate trade for the same pair.
-         */
-        SignalResult existingTrade =
-                activeTrades.get(symbol);
-
-        if (existingTrade != null
-                && existingTrade.isOpen()) {
-
-            results.put(
-                    symbol,
-                    analyzed
-            );
-
-            lastMarketDirection.put(
-                    symbol,
-                    analyzed.action
-            );
-
-            reversalWaiting.put(
-                    symbol,
-                    false
-            );
-
-            return;
-        }
-
-        /*
-         * First confirmed BUY/SELL after WAIT.
-         */
-        if ("WAIT".equals(
-                previousDirection
-        )) {
-
-            createNewMarketSignal(
-                    symbol,
-                    analyzed
-            );
-
-            return;
-        }
-
-        /*
-         * Same direction continues.
-         */
-        if (previousDirection.equals(
-                newDirection
-        )) {
-
-            results.put(
-                    symbol,
-                    analyzed
-            );
-
-            reversalWaiting.put(
-                    symbol,
-                    false
-            );
-
-            return;
-        }
-
-        /*
-         * Direction changed.
-         * Require confirmation before creating
-         * a new signal.
-         */
-        boolean waiting =
-                reversalWaiting.containsKey(
-                        symbol
-                )
-                        && Boolean.TRUE.equals(
-                        reversalWaiting.get(
-                                symbol
-                        )
-                );
-
-        if (!waiting) {
-
-            SignalResult wait =
-                    new SignalResult(
-                            "WAIT",
-                            analyzed.entry,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0
-                    );
-
-            results.put(
-                    symbol,
-                    wait
-            );
-
-            reversalWaiting.put(
-                    symbol,
-                    true
-            );
-
-            return;
-        }
-
-        /*
-         * Second confirmation.
-         * Check market and daily limit again.
-         */
-        if (!isNewSignalAllowed()) {
-
-            return;
-        }
-
-        createNewMarketSignal(
-                symbol,
-                analyzed
-        );
-
-        reversalWaiting.put(
-                symbol,
-                false
-        );
-    }
-
-    private void createNewMarketSignal(
-            String symbol,
-            SignalResult signal) {
-
-        if (signal == null) {
-            return;
-        }
-
-        /*
-         * Only BUY/SELL can become new trades.
-         */
-        if (!"BUY".equals(signal.action)
-                && !"SELL".equals(signal.action)) {
-
-            return;
-        }
-
-        /*
-         * Final market protection.
-         */
-        if (!isNewSignalAllowed()) {
-            return;
-        }
-
-        /*
-         * Do not duplicate an active trade.
-         */
-        SignalResult existing =
-                activeTrades.get(symbol);
-
-        if (existing != null
-                && existing.isOpen()) {
-
-            results.put(
-                    symbol,
-                    signal
-            );
-
-            return;
-        }
-
-        /*
-         * Final daily-limit check.
-         */
-        if (getDailySignalCount()
-                >= MAX_DAILY_SIGNALS) {
-
-            return;
-        }
-
-        /*
-         * Count ONLY a genuinely new signal.
-         */
-        increaseDailySignalCount();
-
-        results.put(
-                symbol,
-                signal
-        );
-
-        lastMarketDirection.put(
-                symbol,
-                signal.action
-        );
-
-        signalStorage.saveSignal(
-                symbol,
-                signal
-        );
-
-        activeTrades.put(
-                symbol,
-                signal
-        );
-
-        signalStorage.saveActiveSignal(
-                symbol,
-                signal
-        );
-    }
-
-    /*
-     * =========================================================
-     * HISTORY DISPLAY
-     * =========================================================
-     */
-
-    private void updateHistoryDisplay() {
-
-        if (signalHistory.isEmpty()) {
-
-            history.setText(
-                    "No signal history yet."
-            );
-
-            return;
-        }
-
-        StringBuilder text =
-                new StringBuilder();
-
-        int limit =
-                Math.min(
-                        signalHistory.size(),
-                        50
-                );
-
-        for (int i = 0;
-             i < limit;
-             i++) {
-
-            text.append(
-                    i + 1
-            )
-                    .append(". ")
-                    .append(
-                            signalHistory.get(i)
-                    )
-                    .append("\n\n");
-        }
-
-        history.setText(
-                text.toString()
-        );
-    }
-
-    private String buildHistoryText(
-            String symbol,
-            SignalResult result) {
-
-        String target =
-                result.highestTargetReached > 0
-                        ? "TP"
-                        + result.highestTargetReached
-                        + " reached"
-                        : "No TP reached";
-
-        return symbol
-                + " • "
-                + result.action
-                + " • "
-                + result.status
-                + "\n"
-                + formatSignalTime(
-                result.signalTimeMillis
-        )
-                + "\n"
-                + target
-                + "\n"
-                + result.resultReason;
-    }
-
-    private String formatSignalTime(
-            long millis) {
-
-        if (millis <= 0) {
-            return "--";
-        }
-
-        java.text.SimpleDateFormat format =
-                new java.text.SimpleDateFormat(
-                        "dd MMM yyyy • HH:mm:ss",
-                        Locale.US
-                );
-
-        return format.format(
-                new java.util.Date(
-                        millis
-                )
-        );
-    }
-
-    /*
-     * =========================================================
-     * COPY SIGNAL
-     * =========================================================
-     */
-
-    private void copyBestSignal() {
-
-        if (bestSymbol == null
-                || bestResult == null
-                || "WAIT".equals(
-                bestResult.action
-        )) {
-
-            Toast.makeText(
-                    this,
-                    "No current BUY or SELL signal.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
-
-        String text =
-                "ForexPilot AI Signal\n\n"
-                        + "Market: "
-                        + bestSymbol
-                        + "\n"
-                        + "Timeframe: "
-                        + timeframeName()
-                        + "\n"
-                        + "Signal: "
-                        + bestResult.action
-                        + "\n"
-                        + "Confidence: "
-                        + bestResult.confidence
-                        + "%"
-                        + "\n"
-                        + "Signal Time: "
-                        + formatSignalTime(
-                        bestResult.signalTimeMillis
-                )
-                        + "\n\n"
-                        + "Entry: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.entry
-                )
-                        + "\n"
-                        + "Stop Loss: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.sl
-                )
-                        + "\n"
-                        + "TP1: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.tp1
-                )
-                        + "\n"
-                        + "TP2: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.tp2
-                )
-                        + "\n"
-                        + "TP3: "
-                        + formatPrice(
-                        bestSymbol,
-                        bestResult.tp3
-                );
-
-        ClipboardManager clipboard =
-                (ClipboardManager)
-                        getSystemService(
-                                Context.CLIPBOARD_SERVICE
-                        );
-
-        ClipData clip =
-                ClipData.newPlainText(
-                        "ForexPilot AI Signal",
-                        text
-                );
-
-        clipboard.setPrimaryClip(
-                clip
-        );
-
-        Toast.makeText(
-                this,
-                "Signal copied!",
-                Toast.LENGTH_SHORT
-        ).show();
-    }
-
-    private String formatPrice(
-            String symbol,
-            double value) {
+    private String formatPrice(double value) {
 
         if (value <= 0) {
-            return "--";
-        }
-
-        if ("USD/JPY".equals(symbol)) {
-
-            return String.format(
-                    Locale.US,
-                    "%.3f",
-                    value
-            );
-        }
-
-        if ("XAU/USD".equals(symbol)) {
-
-            return String.format(
-                    Locale.US,
-                    "%.2f",
-                    value
-            );
+            return "-";
         }
 
         return String.format(
@@ -2628,157 +2069,232 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    /*
-     * =========================================================
-     * TWELVE DATA CALLBACK
-     * =========================================================
-     */
+    private void updateHistoryDisplay() {
 
-    private class PairCallback
-            implements TwelveDataClient.Callback {
-
-        private final String symbol;
-
-        PairCallback(String symbol) {
-            this.symbol = symbol;
+        if (history == null) {
+            return;
         }
 
-        @Override
-        public void price(double price) {
+        List<String> savedHistory =
+                signalStorage.getHistory();
 
-            runOnUiThread(() -> {
+        if (savedHistory == null ||
+                savedHistory.isEmpty()) {
 
-                prices.put(
-                        symbol,
-                        price
-                );
+            history.setText(
+                    "No completed signals yet."
+            );
 
-                /*
-                 * Existing trades continue tracking
-                 * even when the market is closed.
-                 */
-                checkActiveTrade(
-                        symbol,
-                        price
-                );
-
-                updateScanner();
-
-                updateChart();
-
-                updated.setText(
-                        "LIVE • "
-                                + symbol
-                                + " • "
-                                + timeframeName()
-                );
-            });
+            return;
         }
 
-        @Override
-        public void candles(
-                List<Candle> candles) {
+        StringBuilder builder =
+                new StringBuilder();
 
-            if (candles == null
-                    || candles.isEmpty()) {
+        for (String item :
+                savedHistory) {
 
-                return;
-            }
-
-            List<Candle> copy =
-                    new ArrayList<>(
-                            candles
-                    );
-
-            TwelveDataClient liveClient =
-                    clients.get(symbol);
-
-            double livePrice = 0;
-
-            if (liveClient != null) {
-
-                livePrice =
-                        liveClient.getLatestPrice();
-            }
-
-            SignalResult analyzed =
-                    SignalEngine.analyze(
-                            candles,
-                            livePrice
-                    );
-
-            runOnUiThread(() -> {
-
-                candleData.put(
-                        symbol,
-                        copy
-                );
-
-                processCurrentSignal(
-                        symbol,
-                        analyzed
-                );
-
-                updateScanner();
-
-                updateChart();
-
-                updated.setText(
-                        "LIVE MARKET UPDATED • "
-                                + symbol
-                                + " • "
-                                + timeframeName()
-                );
-            });
+            builder.append(item);
+            builder.append("\n\n");
         }
 
-        @Override
-        public void error(String error) {
+        history.setText(
+                builder.toString()
+        );
+    }
 
-            runOnUiThread(() ->
-                    updated.setText(
-                            symbol
-                                    + ": "
-                                    + error
+    private void copyCurrentSignal() {
+
+        SignalResult result =
+                currentSignals.get(
+                        chartSymbol
+                );
+
+        if (result == null) {
+
+            Toast.makeText(
+                    this,
+                    "No signal available",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        String text =
+                chartSymbol +
+                        "\n" +
+                        "Timeframe: " +
+                        selectedTimeframe +
+                        "\n" +
+                        "Signal: " +
+                        result.action +
+                        "\n" +
+                        "Confidence: " +
+                        result.confidence +
+                        "%";
+
+        if ("BUY".equals(result.action)
+                || "SELL".equals(result.action)) {
+
+            text +=
+                    "\nEntry: " +
+                            formatPrice(
+                                    result.entry
+                            ) +
+                            "\nStop Loss: " +
+                            formatPrice(
+                                    result.sl
+                            ) +
+                            "\nTP1: " +
+                            formatPrice(
+                                    result.tp1
+                            ) +
+                            "\nTP2: " +
+                            formatPrice(
+                                    result.tp2
+                            ) +
+                            "\nTP3: " +
+                            formatPrice(
+                                    result.tp3
+                            );
+        }
+
+        ClipboardManager clipboard =
+                (ClipboardManager)
+                        getSystemService(
+                                Context.CLIPBOARD_SERVICE
+                        );
+
+        if (clipboard != null) {
+
+            clipboard.setPrimaryClip(
+                    ClipData.newPlainText(
+                            "ForexPilot AI Signal",
+                            text
                     )
             );
+
+            Toast.makeText(
+                    this,
+                    "Signal copied",
+                    Toast.LENGTH_SHORT
+            ).show();
         }
     }
 
     /*
-     * =========================================================
-     * CLEANUP
-     * =========================================================
+     * ---------------------------------------------------------
+     * NOTIFICATIONS
+     * ---------------------------------------------------------
      */
+
+    private void requestNotificationPermission() {
+
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.TIRAMISU) {
+
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED) {
+
+                ActivityCompat.requestPermissions(
+                        this,
+                        new String[]{
+                                Manifest.permission.POST_NOTIFICATIONS
+                        },
+                        1001
+                );
+            }
+        }
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * LOGOUT
+     * ---------------------------------------------------------
+     */
+
+    private void logout() {
+
+        try {
+
+            if (firebaseAuth != null) {
+                firebaseAuth.signOut();
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        closeLiveConnections();
+
+        Intent intent =
+                getPackageManager()
+                        .getLaunchIntentForPackage(
+                                getPackageName()
+                        );
+
+        if (intent != null) {
+
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                            Intent.FLAG_ACTIVITY_NEW_TASK
+            );
+
+            startActivity(intent);
+        }
+
+        finish();
+    }
+
+    @Override
+    protected void onResume() {
+
+        super.onResume();
+
+        updateMarketStatus();
+
+        /*
+         * Load cached candles again in case the user
+         * changed timeframe while the Activity was paused.
+         */
+        loadCachedCandleData();
+
+        updateChart();
+
+        if (isForexWeekdayOpen()) {
+            startLivePriceConnections();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+
+        super.onPause();
+
+        /*
+         * We do not destroy cached chart data.
+         * It remains in SharedPreferences for the next
+         * app launch.
+         */
+    }
 
     @Override
     protected void onDestroy() {
 
-        super.onDestroy();
-
-        handler.removeCallbacksAndMessages(
-                null
+        handler.removeCallbacks(
+                refreshRunnable
         );
 
-        chartReady = false;
+        closeLiveConnections();
 
-        if (candleChart != null) {
+        if (chartWebView != null) {
 
-            candleChart.stopLoading();
-
-            candleChart.loadUrl(
-                    "about:blank"
-            );
-
-            candleChart.destroy();
+            chartWebView.stopLoading();
+            chartWebView.destroy();
         }
 
-        for (TwelveDataClient client :
-                clients.values()) {
-
-            client.close();
-        }
-
-        clients.clear();
+        super.onDestroy();
     }
 }
