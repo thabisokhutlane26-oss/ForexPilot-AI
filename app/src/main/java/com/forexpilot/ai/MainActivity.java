@@ -12,6 +12,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,14 +22,10 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
-import com.github.mikephil.charting.charts.CandleStickChart;
-import com.github.mikephil.charting.components.Description;
-import com.github.mikephil.charting.components.Legend;
-import com.github.mikephil.charting.components.LimitLine;
-import com.github.mikephil.charting.components.YAxis;
-import com.github.mikephil.charting.data.CandleData;
-import com.github.mikephil.charting.data.CandleDataSet;
-import com.github.mikephil.charting.data.CandleEntry;
+import com.google.firebase.auth.FirebaseAuth;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,8 +53,11 @@ public class MainActivity extends AppCompatActivity {
 
     private Button refreshButton;
     private Button copyButton;
+    private Button logoutButton;
 
-    private CandleStickChart candleChart;
+    private WebView candleChart;
+
+    private boolean chartReady = false;
 
     private final Handler handler =
             new Handler(Looper.getMainLooper());
@@ -86,6 +88,8 @@ public class MainActivity extends AppCompatActivity {
 
     private SignalStorage signalStorage;
 
+    private FirebaseAuth firebaseAuth;
+
     private static final String[] SYMBOLS = {
             "XAU/USD",
             "EUR/USD",
@@ -93,12 +97,6 @@ public class MainActivity extends AppCompatActivity {
             "USD/JPY",
             "NZD/USD"
     };
-
-    /*
-     * ========================================================
-     * SELECTED TIMEFRAME STORAGE
-     * ========================================================
-     */
 
     private static final String PREFS_NAME =
             "ForexPilotSettings";
@@ -124,17 +122,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
 
-        setContentView(
-                R.layout.activity_main
-        );
+        setContentView(R.layout.activity_main);
 
-        /*
-         * Load the last selected timeframe before
-         * starting the scanners.
-         */
         SharedPreferences preferences =
                 getSharedPreferences(
                         PREFS_NAME,
@@ -177,26 +168,26 @@ public class MainActivity extends AppCompatActivity {
         copyButton =
                 findViewById(R.id.copyButton);
 
+        logoutButton =
+                findViewById(R.id.logoutButton);
+
         candleChart =
                 findViewById(R.id.candleChart);
 
         signalStorage =
                 new SignalStorage(this);
 
-        loadSavedHistory();
+        firebaseAuth =
+                FirebaseAuth.getInstance();
 
+        loadSavedHistory();
         loadActiveSignals();
 
-        title.setText(
-                "ForexPilot AI"
-        );
+        title.setText("ForexPilot AI");
 
         setupChart();
-
         setupButtons();
-
         updateMarketStatus();
-
         updatePerformance();
 
         String apiKey =
@@ -211,9 +202,7 @@ public class MainActivity extends AppCompatActivity {
                             + "to GitHub Secrets."
             );
 
-            bestSignal.setText(
-                    "WAIT"
-            );
+            bestSignal.setText("WAIT");
 
             bestSignal.setTextColor(
                     Color.rgb(
@@ -254,7 +243,6 @@ public class MainActivity extends AppCompatActivity {
 
         handler.postDelayed(
                 new Runnable() {
-
                     @Override
                     public void run() {
 
@@ -271,7 +259,6 @@ public class MainActivity extends AppCompatActivity {
 
         handler.postDelayed(
                 new Runnable() {
-
                     @Override
                     public void run() {
 
@@ -331,6 +318,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /*
+     * =========================================================
+     * INTERACTIVE TRADINGVIEW-STYLE CHART
+     * =========================================================
+     */
+
     private void setupChart() {
 
         candleChart.setBackgroundColor(
@@ -341,55 +334,294 @@ public class MainActivity extends AppCompatActivity {
                 )
         );
 
-        candleChart.setDrawGridBackground(false);
-        candleChart.setDragEnabled(true);
-        candleChart.setScaleEnabled(true);
-        candleChart.setPinchZoom(true);
-        candleChart.setDoubleTapToZoomEnabled(true);
-        candleChart.setHighlightPerDragEnabled(true);
-        candleChart.setAutoScaleMinMaxEnabled(true);
+        WebSettings settings =
+                candleChart.getSettings();
 
-        candleChart.setNoDataText(
-                "Waiting for candle data..."
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
+
+        candleChart.setVerticalScrollBarEnabled(false);
+        candleChart.setHorizontalScrollBarEnabled(false);
+        candleChart.setOverScrollMode(
+                WebView.OVER_SCROLL_NEVER
         );
 
-        candleChart.setNoDataTextColor(
-                Color.LTGRAY
+        candleChart.setWebViewClient(
+                new WebViewClient() {
+
+                    @Override
+                    public void onPageFinished(
+                            WebView view,
+                            String url) {
+
+                        super.onPageFinished(
+                                view,
+                                url
+                        );
+
+                        chartReady = true;
+
+                        updateChart();
+                    }
+                }
         );
 
-        Description description =
-                new Description();
-
-        description.setText("");
-
-        candleChart.setDescription(
-                description
+        candleChart.loadDataWithBaseURL(
+                "https://www.tradingview.com/",
+                createChartHtml(),
+                "text/html",
+                "UTF-8",
+                null
         );
+    }
 
-        Legend legend =
-                candleChart.getLegend();
+    private String createChartHtml() {
 
-        legend.setEnabled(false);
+        return "<!DOCTYPE html>"
+                + "<html>"
+                + "<head>"
+                + "<meta name=\"viewport\" "
+                + "content=\"width=device-width, "
+                + "initial-scale=1.0, "
+                + "maximum-scale=1.0, "
+                + "user-scalable=no\">"
 
-        YAxis leftAxis =
-                candleChart.getAxisLeft();
+                + "<script "
+                + "src=\"https://unpkg.com/"
+                + "lightweight-charts/"
+                + "dist/"
+                + "lightweight-charts."
+                + "standalone.production.js\">"
+                + "</script>"
 
-        leftAxis.setTextColor(Color.LTGRAY);
-        leftAxis.setDrawGridLines(true);
+                + "<style>"
 
-        YAxis rightAxis =
-                candleChart.getAxisRight();
+                + "html,body{"
+                + "margin:0;"
+                + "padding:0;"
+                + "width:100%;"
+                + "height:100%;"
+                + "overflow:hidden;"
+                + "background:#0B0F14;"
+                + "font-family:Arial,sans-serif;"
+                + "}"
 
-        rightAxis.setEnabled(false);
+                + "#chart{"
+                + "position:absolute;"
+                + "left:0;"
+                + "top:0;"
+                + "right:0;"
+                + "bottom:26px;"
+                + "}"
 
-        candleChart.getXAxis()
-                .setTextColor(Color.LTGRAY);
+                + "#watermark{"
+                + "position:absolute;"
+                + "left:8px;"
+                + "bottom:4px;"
+                + "font-size:10px;"
+                + "color:#6F7885;"
+                + "z-index:10;"
+                + "}"
 
-        candleChart.getXAxis()
-                .setDrawGridLines(false);
+                + "#symbol{"
+                + "position:absolute;"
+                + "left:10px;"
+                + "top:8px;"
+                + "z-index:10;"
+                + "color:#FFFFFF;"
+                + "font-size:13px;"
+                + "font-weight:bold;"
+                + "background:rgba(11,15,20,0.75);"
+                + "padding:5px 8px;"
+                + "border-radius:4px;"
+                + "}"
+
+                + "</style>"
+                + "</head>"
+
+                + "<body>"
+
+                + "<div id=\"chart\"></div>"
+                + "<div id=\"symbol\">ForexPilot AI</div>"
+
+                + "<div id=\"watermark\">"
+                + "Charts by TradingView"
+                + "</div>"
+
+                + "<script>"
+
+                + "let chart=null;"
+                + "let candleSeries=null;"
+                + "let priceLines=[];"
+
+                + "function createTradingChart(){"
+
+                + "const container="
+                + "document.getElementById('chart');"
+
+                + "chart="
+                + "LightweightCharts.createChart("
+                + "container,{"
+
+                + "layout:{"
+                + "background:{color:'#0B0F14'},"
+                + "textColor:'#AAB4C3'"
+                + "},"
+
+                + "grid:{"
+                + "vertLines:{color:'#151C25'},"
+                + "horzLines:{color:'#151C25'}"
+                + "},"
+
+                + "crosshair:{"
+                + "mode:LightweightCharts."
+                + "CrosshairMode.Normal"
+                + "},"
+
+                + "rightPriceScale:{"
+                + "borderColor:'#27313D',"
+                + "scaleMargins:{"
+                + "top:0.08,"
+                + "bottom:0.08"
+                + "}"
+                + "},"
+
+                + "timeScale:{"
+                + "borderColor:'#27313D',"
+                + "timeVisible:true,"
+                + "secondsVisible:false,"
+                + "rightOffset:5,"
+                + "barSpacing:7,"
+                + "minBarSpacing:2"
+                + "},"
+
+                + "handleScroll:{"
+                + "mouseWheel:true,"
+                + "pressedMouseMove:true,"
+                + "horzTouchDrag:true"
+                + "},"
+
+                + "handleScale:{"
+                + "mouseWheel:true,"
+                + "pinch:true,"
+                + "axisPressedMouseMove:true"
+                + "},"
+
+                + "autoSize:true,"
+                + "attributionLogo:true"
+                + "});"
+
+                + "candleSeries="
+                + "chart.addSeries("
+                + "LightweightCharts.CandlestickSeries,"
+                + "{"
+
+                + "upColor:'#4CFF78',"
+                + "downColor:'#FF5050',"
+                + "borderUpColor:'#4CFF78',"
+                + "borderDownColor:'#FF5050',"
+                + "wickUpColor:'#4CFF78',"
+                + "wickDownColor:'#FF5050'"
+
+                + "});"
+
+                + "}"
+
+                + "function clearPriceLines(){"
+
+                + "if(!candleSeries)return;"
+
+                + "for(let i=0;i<priceLines.length;i++){"
+                + "candleSeries.removePriceLine("
+                + "priceLines[i]);"
+                + "}"
+
+                + "priceLines=[];"
+                + "}"
+
+                + "function addPriceLine("
+                + "value,title,color){"
+
+                + "if(!candleSeries||"
+                + "!value||value<=0)return;"
+
+                + "const line="
+                + "candleSeries.createPriceLine({"
+
+                + "price:value,"
+                + "color:color,"
+                + "lineWidth:1,"
+                + "lineStyle:"
+                + "LightweightCharts.LineStyle.Dashed,"
+                + "axisLabelVisible:true,"
+                + "title:title"
+                + "});"
+
+                + "priceLines.push(line);"
+                + "}"
+
+                + "function setChartData("
+                + "data,symbol,entry,sl,tp1,tp2,tp3){"
+
+                + "if(!chart||!candleSeries)return;"
+
+                + "document.getElementById('symbol')"
+                + ".innerText="
+                + "symbol;"
+
+                + "candleSeries.setData(data);"
+
+                + "clearPriceLines();"
+
+                + "addPriceLine("
+                + "entry,'ENTRY','#FFFFFF');"
+
+                + "addPriceLine("
+                + "sl,'SL','#FF5050');"
+
+                + "addPriceLine("
+                + "tp1,'TP1','#4CFF78');"
+
+                + "addPriceLine("
+                + "tp2,'TP2','#4CFF78');"
+
+                + "addPriceLine("
+                + "tp3,'TP3','#4CFF78');"
+
+                + "chart.timeScale().fitContent();"
+                + "}"
+
+                + "function resizeChart(){"
+
+                + "if(chart){"
+                + "chart.timeScale().applyOptions({"
+                + "rightOffset:5"
+                + "});"
+                + "}"
+
+                + "}"
+
+                + "window.addEventListener("
+                + "'resize',resizeChart);"
+
+                + "createTradingChart();"
+
+                + "</script>"
+
+                + "</body>"
+                + "</html>";
     }
 
     private void updateChart() {
+
+        if (!chartReady
+                || candleChart == null) {
+            return;
+        }
 
         String chartSymbol =
                 getChartSymbol();
@@ -404,186 +636,146 @@ public class MainActivity extends AppCompatActivity {
         if (candles == null
                 || candles.isEmpty()) {
 
-            candleChart.clear();
-
-            candleChart.setNoDataText(
-                    "Waiting for "
-                            + chartSymbol
-                            + " candle data..."
-            );
-
-            candleChart.invalidate();
-
             return;
         }
-
-        ArrayList<CandleEntry> entries =
-                new ArrayList<>();
-
-        int start =
-                Math.max(
-                        0,
-                        candles.size() - 80
-                );
-
-        int x = 0;
-
-        for (int i = start;
-             i < candles.size();
-             i++) {
-
-            Candle candle =
-                    candles.get(i);
-
-            entries.add(
-                    new CandleEntry(
-                            x,
-                            (float) candle.high,
-                            (float) candle.low,
-                            (float) candle.open,
-                            (float) candle.close
-                    )
-            );
-
-            x++;
-        }
-
-        if (entries.isEmpty()) {
-            return;
-        }
-
-        CandleDataSet dataSet =
-                new CandleDataSet(
-                        entries,
-                        chartSymbol
-                );
-
-        dataSet.setDecreasingColor(
-                Color.rgb(255, 80, 80)
-        );
-
-        dataSet.setDecreasingPaintStyle(
-                android.graphics.Paint.Style.FILL
-        );
-
-        dataSet.setIncreasingColor(
-                Color.rgb(76, 255, 120)
-        );
-
-        dataSet.setIncreasingPaintStyle(
-                android.graphics.Paint.Style.FILL
-        );
-
-        dataSet.setNeutralColor(
-                Color.rgb(180, 180, 180)
-        );
-
-        dataSet.setShadowColor(Color.LTGRAY);
-        dataSet.setShadowWidth(1.0f);
-        dataSet.setBarSpace(0.15f);
-        dataSet.setDrawValues(false);
-
-        CandleData candleDataSet =
-                new CandleData(dataSet);
-
-        candleChart.setData(
-                candleDataSet
-        );
-
-        drawSignalLevels(chartSymbol);
-
-        candleChart.notifyDataSetChanged();
-        candleChart.invalidate();
-
-        candleChart.moveViewToX(
-                entries.size() - 1
-        );
-    }
-
-    private void drawSignalLevels(
-            String symbol) {
-
-        YAxis axis =
-                candleChart.getAxisLeft();
-
-        axis.removeAllLimitLines();
 
         SignalResult result =
-                results.get(symbol);
+                results.get(chartSymbol);
 
-        if (result == null
-                || "WAIT".equals(result.action)
-                || result.entry <= 0) {
+        try {
 
-            return;
-        }
+            JSONArray array =
+                    new JSONArray();
 
-        addLevel(
-                axis,
-                result.entry,
-                "ENTRY",
-                Color.WHITE
-        );
+            long intervalSeconds =
+                    timeframeSeconds();
 
-        if (result.sl > 0) {
+            long nowSeconds =
+                    System.currentTimeMillis()
+                            / 1000L;
 
-            addLevel(
-                    axis,
-                    result.sl,
-                    "SL",
-                    Color.rgb(255, 80, 80)
+            long firstTime =
+                    nowSeconds
+                            - (
+                            (long) candles.size()
+                                    * intervalSeconds
+                    );
+
+            for (int i = 0;
+                 i < candles.size();
+                 i++) {
+
+                Candle candle =
+                        candles.get(i);
+
+                JSONObject item =
+                        new JSONObject();
+
+                item.put(
+                        "time",
+                        firstTime
+                                + (
+                                (long) i
+                                        * intervalSeconds
+                        )
+                );
+
+                item.put(
+                        "open",
+                        candle.open
+                );
+
+                item.put(
+                        "high",
+                        candle.high
+                );
+
+                item.put(
+                        "low",
+                        candle.low
+                );
+
+                item.put(
+                        "close",
+                        candle.close
+                );
+
+                array.put(item);
+            }
+
+            double entry = 0;
+            double sl = 0;
+            double tp1 = 0;
+            double tp2 = 0;
+            double tp3 = 0;
+
+            if (result != null
+                    && !"WAIT".equals(
+                    result.action
+            )) {
+
+                entry = result.entry;
+                sl = result.sl;
+                tp1 = result.tp1;
+                tp2 = result.tp2;
+                tp3 = result.tp3;
+            }
+
+            String javascript =
+                    "setChartData("
+                            + array.toString()
+                            + ","
+                            + JSONObject.quote(
+                            chartSymbol
+                    )
+                            + ","
+                            + entry
+                            + ","
+                            + sl
+                            + ","
+                            + tp1
+                            + ","
+                            + tp2
+                            + ","
+                            + tp3
+                            + ");";
+
+            candleChart.evaluateJavascript(
+                    javascript,
+                    null
             );
-        }
 
-        if (result.tp1 > 0) {
+        } catch (Exception e) {
 
-            addLevel(
-                    axis,
-                    result.tp1,
-                    "TP1",
-                    Color.rgb(76, 255, 120)
-            );
-        }
-
-        if (result.tp2 > 0) {
-
-            addLevel(
-                    axis,
-                    result.tp2,
-                    "TP2",
-                    Color.rgb(76, 255, 120)
-            );
-        }
-
-        if (result.tp3 > 0) {
-
-            addLevel(
-                    axis,
-                    result.tp3,
-                    "TP3",
-                    Color.rgb(76, 255, 120)
+            updated.setText(
+                    "Chart error: "
+                            + e.getMessage()
             );
         }
     }
 
-    private void addLevel(
-            YAxis axis,
-            double value,
-            String label,
-            int color) {
+    private long timeframeSeconds() {
 
-        LimitLine line =
-                new LimitLine(
-                        (float) value,
-                        label
-                );
+        switch (selectedTimeframe) {
 
-        line.setLineWidth(1.2f);
-        line.setLineColor(color);
-        line.setTextColor(color);
-        line.setTextSize(10f);
+            case "15min":
+                return 15L * 60L;
 
-        axis.addLimitLine(line);
+            case "30min":
+                return 30L * 60L;
+
+            case "1h":
+                return 60L * 60L;
+
+            case "4h":
+                return 4L * 60L * 60L;
+
+            case "1day":
+                return 24L * 60L * 60L;
+
+            default:
+                return 5L * 60L;
+        }
     }
 
     private String getChartSymbol() {
@@ -598,6 +790,12 @@ public class MainActivity extends AppCompatActivity {
 
         return "XAU/USD";
     }
+
+    /*
+     * =========================================================
+     * HISTORY
+     * =========================================================
+     */
 
     private void loadSavedHistory() {
 
@@ -614,11 +812,22 @@ public class MainActivity extends AppCompatActivity {
 
         for (String record : saved) {
 
-            if (record.contains(" | WIN | ")) {
+            if (record.contains(
+                    " | WIN | "
+            )) {
+
                 wins++;
-            } else if (record.contains(" | LOSS | ")) {
+
+            } else if (record.contains(
+                    " | LOSS | "
+            )) {
+
                 losses++;
-            } else if (record.contains(" | EXPIRED | ")) {
+
+            } else if (record.contains(
+                    " | EXPIRED | "
+            )) {
+
                 expired++;
             }
         }
@@ -656,7 +865,10 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-            prices.put(symbol, 0.0);
+            prices.put(
+                    symbol,
+                    0.0
+            );
 
             candleData.put(
                     symbol,
@@ -675,14 +887,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /*
+     * =========================================================
+     * BUTTONS
+     * =========================================================
+     */
+
     private void setupButtons() {
 
-        Button tf5 = findViewById(R.id.tf5);
-        Button tf15 = findViewById(R.id.tf15);
-        Button tf30 = findViewById(R.id.tf30);
-        Button tf1h = findViewById(R.id.tf1h);
-        Button tf4h = findViewById(R.id.tf4h);
-        Button tf1d = findViewById(R.id.tf1d);
+        Button tf5 =
+                findViewById(R.id.tf5);
+
+        Button tf15 =
+                findViewById(R.id.tf15);
+
+        Button tf30 =
+                findViewById(R.id.tf30);
+
+        Button tf1h =
+                findViewById(R.id.tf1h);
+
+        Button tf4h =
+                findViewById(R.id.tf4h);
+
+        Button tf1d =
+                findViewById(R.id.tf1d);
 
         Button marketGold =
                 findViewById(R.id.marketGold);
@@ -700,37 +929,66 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.marketNzd);
 
         tf5.setOnClickListener(v ->
-                selectTimeframe("5min", "5M"));
+                selectTimeframe(
+                        "5min",
+                        "5M"
+                )
+        );
 
         tf15.setOnClickListener(v ->
-                selectTimeframe("15min", "15M"));
+                selectTimeframe(
+                        "15min",
+                        "15M"
+                )
+        );
 
         tf30.setOnClickListener(v ->
-                selectTimeframe("30min", "30M"));
+                selectTimeframe(
+                        "30min",
+                        "30M"
+                )
+        );
 
         tf1h.setOnClickListener(v ->
-                selectTimeframe("1h", "1H"));
+                selectTimeframe(
+                        "1h",
+                        "1H"
+                )
+        );
 
         tf4h.setOnClickListener(v ->
-                selectTimeframe("4h", "4H"));
+                selectTimeframe(
+                        "4h",
+                        "4H"
+                )
+        );
 
         tf1d.setOnClickListener(v ->
-                selectTimeframe("1day", "1D"));
+                selectTimeframe(
+                        "1day",
+                        "1D"
+                )
+        );
 
         marketGold.setOnClickListener(v ->
-                selectMarket("XAU/USD"));
+                selectMarket("XAU/USD")
+        );
 
         marketEur.setOnClickListener(v ->
-                selectMarket("EUR/USD"));
+                selectMarket("EUR/USD")
+        );
 
         marketGbp.setOnClickListener(v ->
-                selectMarket("GBP/USD"));
+                selectMarket("GBP/USD")
+        );
 
         marketJpy.setOnClickListener(v ->
-                selectMarket("USD/JPY"));
+                selectMarket("USD/JPY")
+        );
 
         marketNzd.setOnClickListener(v ->
-                selectMarket("NZD/USD"));
+                selectMarket("NZD/USD")
+        );
 
         refreshButton.setOnClickListener(v -> {
 
@@ -761,6 +1019,36 @@ public class MainActivity extends AppCompatActivity {
         copyButton.setOnClickListener(
                 v -> copyBestSignal()
         );
+
+        logoutButton.setOnClickListener(
+                v -> logout()
+        );
+    }
+
+    private void logout() {
+
+        firebaseAuth.signOut();
+
+        Toast.makeText(
+                this,
+                "Logged out",
+                Toast.LENGTH_SHORT
+        ).show();
+
+        Intent intent =
+                new Intent(
+                        MainActivity.this,
+                        LoginActivity.class
+                );
+
+        intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
+        );
+
+        startActivity(intent);
+
+        finish();
     }
 
     private void selectTimeframe(
@@ -769,10 +1057,6 @@ public class MainActivity extends AppCompatActivity {
 
         selectedTimeframe = interval;
 
-        /*
-         * Save the selected timeframe so the background
-         * monitor uses the same timeframe.
-         */
         getSharedPreferences(
                 PREFS_NAME,
                 MODE_PRIVATE
@@ -868,6 +1152,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /*
+     * =========================================================
+     * MARKET DATA
+     * =========================================================
+     */
+
     private void startScanner(
             String apiKey) {
 
@@ -890,7 +1180,11 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (!prices.containsKey(symbol)) {
-                prices.put(symbol, 0.0);
+
+                prices.put(
+                        symbol,
+                        0.0
+                );
             }
 
             if (!candleData.containsKey(symbol)) {
@@ -906,7 +1200,10 @@ public class MainActivity extends AppCompatActivity {
                             new PairCallback(symbol)
                     );
 
-            clients.put(symbol, client);
+            clients.put(
+                    symbol,
+                    client
+            );
 
             client.candles(
                     symbol,
@@ -954,7 +1251,10 @@ public class MainActivity extends AppCompatActivity {
                                 new PairCallback(symbol)
                         );
 
-                clients.put(symbol, newClient);
+                clients.put(
+                        symbol,
+                        newClient
+                );
 
                 newClient.candles(
                         symbol,
@@ -991,6 +1291,12 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
+    /*
+     * =========================================================
+     * SCANNER
+     * =========================================================
+     */
+
     private void updateScanner() {
 
         StringBuilder text =
@@ -1005,7 +1311,6 @@ public class MainActivity extends AppCompatActivity {
 
             if (!"ALL".equals(selectedMarket)
                     && !selectedMarket.equals(symbol)) {
-
                 continue;
             }
 
@@ -1021,7 +1326,8 @@ public class MainActivity extends AppCompatActivity {
                             ? prices.get(symbol)
                             : 0;
 
-            text.append(symbol).append("\n");
+            text.append(symbol)
+                    .append("\n");
 
             text.append(
                     "CURRENT SIGNAL: "
@@ -1136,7 +1442,9 @@ public class MainActivity extends AppCompatActivity {
             text.append("\n");
         }
 
-        scanner.setText(text.toString());
+        scanner.setText(
+                text.toString()
+        );
 
         findBestSignal();
 
@@ -1152,7 +1460,6 @@ public class MainActivity extends AppCompatActivity {
 
             if (!"ALL".equals(selectedMarket)
                     && !selectedMarket.equals(symbol)) {
-
                 continue;
             }
 
@@ -1205,6 +1512,7 @@ public class MainActivity extends AppCompatActivity {
             );
 
             updateCurrentSignalStatus();
+
             updateChart();
 
             return;
@@ -1312,6 +1620,7 @@ public class MainActivity extends AppCompatActivity {
         );
 
         updateCurrentSignalStatus();
+
         updateChart();
     }
 
@@ -1346,7 +1655,9 @@ public class MainActivity extends AppCompatActivity {
                 bestResult.action
         );
 
-        if ("BUY".equals(bestResult.action)) {
+        if ("BUY".equals(
+                bestResult.action
+        )) {
 
             signalStatus.setTextColor(
                     Color.rgb(
@@ -1356,7 +1667,9 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-        } else if ("SELL".equals(bestResult.action)) {
+        } else if ("SELL".equals(
+                bestResult.action
+        )) {
 
             signalStatus.setTextColor(
                     Color.rgb(
@@ -1389,6 +1702,12 @@ public class MainActivity extends AppCompatActivity {
                         + timeframeName()
         );
     }
+
+    /*
+     * =========================================================
+     * PERFORMANCE
+     * =========================================================
+     */
 
     private void updatePerformance() {
 
@@ -1444,6 +1763,12 @@ public class MainActivity extends AppCompatActivity {
 
         return count;
     }
+
+    /*
+     * =========================================================
+     * TRADE TRACKING
+     * =========================================================
+     */
 
     private void checkActiveTrade(
             String symbol,
@@ -1530,7 +1855,9 @@ public class MainActivity extends AppCompatActivity {
             String symbol,
             SignalResult trade) {
 
-        signalStorage.removeActiveSignal(symbol);
+        signalStorage.removeActiveSignal(
+                symbol
+        );
 
         signalStorage.saveSignal(
                 symbol,
@@ -1555,6 +1882,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /*
+     * =========================================================
+     * SIGNAL PROCESSING
+     * =========================================================
+     */
+
     private void processCurrentSignal(
             String symbol,
             SignalResult analyzed) {
@@ -1567,7 +1900,9 @@ public class MainActivity extends AppCompatActivity {
                 analyzed.action;
 
         String previousDirection =
-                lastMarketDirection.containsKey(symbol)
+                lastMarketDirection.containsKey(
+                        symbol
+                )
                         ? lastMarketDirection.get(symbol)
                         : "WAIT";
 
@@ -1585,7 +1920,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if ("WAIT".equals(previousDirection)) {
+        if ("WAIT".equals(
+                previousDirection
+        )) {
 
             createNewMarketSignal(
                     symbol,
@@ -1595,7 +1932,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (previousDirection.equals(newDirection)) {
+        if (previousDirection.equals(
+                newDirection
+        )) {
 
             results.put(
                     symbol,
@@ -1611,9 +1950,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         boolean waiting =
-                reversalWaiting.containsKey(symbol)
+                reversalWaiting.containsKey(
+                        symbol
+                )
                         && Boolean.TRUE.equals(
-                        reversalWaiting.get(symbol)
+                        reversalWaiting.get(
+                                symbol
+                        )
                 );
 
         if (!waiting) {
@@ -1682,6 +2025,12 @@ public class MainActivity extends AppCompatActivity {
                 signal
         );
     }
+
+    /*
+     * =========================================================
+     * HISTORY DISPLAY
+     * =========================================================
+     */
 
     private void updateHistoryDisplay() {
 
@@ -1762,9 +2111,17 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         return format.format(
-                new java.util.Date(millis)
+                new java.util.Date(
+                        millis
+                )
         );
     }
+
+    /*
+     * =========================================================
+     * COPY SIGNAL
+     * =========================================================
+     */
 
     private void copyBestSignal() {
 
@@ -1845,7 +2202,9 @@ public class MainActivity extends AppCompatActivity {
                         text
                 );
 
-        clipboard.setPrimaryClip(clip);
+        clipboard.setPrimaryClip(
+                clip
+        );
 
         Toast.makeText(
                 this,
@@ -1887,6 +2246,12 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
+    /*
+     * =========================================================
+     * TWELVE DATA CALLBACK
+     * =========================================================
+     */
+
     private class PairCallback
             implements TwelveDataClient.Callback {
 
@@ -1912,6 +2277,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 updateScanner();
+
                 updateChart();
 
                 updated.setText(
@@ -1934,7 +2300,9 @@ public class MainActivity extends AppCompatActivity {
             }
 
             List<Candle> copy =
-                    new ArrayList<>(candles);
+                    new ArrayList<>(
+                            candles
+                    );
 
             TwelveDataClient liveClient =
                     clients.get(symbol);
@@ -1966,6 +2334,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 updateScanner();
+
                 updateChart();
 
                 updated.setText(
@@ -1990,12 +2359,33 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /*
+     * =========================================================
+     * CLEANUP
+     * =========================================================
+     */
+
     @Override
     protected void onDestroy() {
 
         super.onDestroy();
 
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(
+                null
+        );
+
+        chartReady = false;
+
+        if (candleChart != null) {
+
+            candleChart.stopLoading();
+
+            candleChart.loadUrl(
+                    "about:blank"
+            );
+
+            candleChart.destroy();
+        }
 
         for (TwelveDataClient client :
                 clients.values()) {
