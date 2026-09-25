@@ -35,10 +35,13 @@ import okhttp3.Response;
 
 public class ForexMonitorService extends Service {
 
-    private static final String CHANNEL_ID = "forexpilot_monitor";
+    private static final String CHANNEL_ID =
+            "forexpilot_monitor";
+
     private static final int FOREGROUND_ID = 9001;
 
-    private static final long SCAN_INTERVAL_SECONDS = 15 * 60;
+    private static final long SCAN_INTERVAL_SECONDS =
+            15 * 60;
 
     /*
      * Must match MainActivity.
@@ -69,6 +72,7 @@ public class ForexMonitorService extends Service {
     };
 
     private ScheduledExecutorService scheduler;
+
     private OkHttpClient httpClient;
 
     /*
@@ -88,7 +92,9 @@ public class ForexMonitorService extends Service {
                         this,
                         CHANNEL_ID
                 )
-                        .setContentTitle("ForexPilot AI")
+                        .setContentTitle(
+                                "ForexPilot AI"
+                        )
                         .setContentText(
                                 "Forex monitoring is active"
                         )
@@ -97,11 +103,13 @@ public class ForexMonitorService extends Service {
                         )
                         .setOngoing(true)
                         .setPriority(
-                                NotificationCompat.PRIORITY_LOW
+                                NotificationCompat
+                                        .PRIORITY_LOW
                         )
                         .build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT
+                >= Build.VERSION_CODES.Q) {
 
             startForeground(
                     FOREGROUND_ID,
@@ -118,10 +126,12 @@ public class ForexMonitorService extends Service {
             );
         }
 
-        httpClient = new OkHttpClient();
+        httpClient =
+                new OkHttpClient();
 
         scheduler =
-                Executors.newSingleThreadScheduledExecutor();
+                Executors
+                        .newSingleThreadScheduledExecutor();
 
         scheduler.scheduleWithFixedDelay(
                 this::scanMarkets,
@@ -139,10 +149,23 @@ public class ForexMonitorService extends Service {
     private void scanMarkets() {
 
         /*
-         * Never create NEW signals while the market
+         * Never create NEW signals while market
          * is closed.
          */
         if (!isSignalGenerationAllowed()) {
+            return;
+        }
+
+        /*
+         * Reset daily counter first.
+         */
+        resetDailyCounterIfNeeded();
+
+        /*
+         * Maximum two signals per day.
+         */
+        if (getDailySignalCount()
+                >= MAX_DAILY_SIGNALS) {
             return;
         }
 
@@ -151,20 +174,6 @@ public class ForexMonitorService extends Service {
 
         if (apiKey == null
                 || apiKey.trim().isEmpty()) {
-            return;
-        }
-
-        /*
-         * Reset the daily counter when a new
-         * South African calendar day begins.
-         */
-        resetDailyCounterIfNeeded();
-
-        /*
-         * Two signals already used today.
-         */
-        if (getDailySignalCount()
-                >= MAX_DAILY_SIGNALS) {
             return;
         }
 
@@ -181,8 +190,7 @@ public class ForexMonitorService extends Service {
                 );
 
         if (!isValidTimeframe(
-                selectedTimeframe
-        )) {
+                selectedTimeframe)) {
 
             selectedTimeframe = "5min";
         }
@@ -190,14 +198,14 @@ public class ForexMonitorService extends Service {
         for (String symbol : SYMBOLS) {
 
             /*
-             * Check market again before every symbol.
+             * Market may close while scanning.
              */
             if (!isSignalGenerationAllowed()) {
                 return;
             }
 
             /*
-             * Stop immediately after two signals.
+             * Stop after two signals.
              */
             if (getDailySignalCount()
                     >= MAX_DAILY_SIGNALS) {
@@ -218,10 +226,6 @@ public class ForexMonitorService extends Service {
                     continue;
                 }
 
-                /*
-                 * Convert Twelve Data candles into
-                 * the existing Candle class.
-                 */
                 List<Candle> candleList =
                         new ArrayList<>();
 
@@ -253,9 +257,8 @@ public class ForexMonitorService extends Service {
                             );
 
                     /*
-                     * IMPORTANT:
-                     * Your Candle constructor has
-                     * exactly four parameters.
+                     * Candle has exactly four
+                     * constructor parameters.
                      */
                     candleList.add(
                             new Candle(
@@ -279,11 +282,6 @@ public class ForexMonitorService extends Service {
                 double livePrice =
                         latest.close;
 
-                /*
-                 * IMPORTANT:
-                 * SignalResult is a top-level class
-                 * in your project.
-                 */
                 SignalResult result =
                         SignalEngine.analyze(
                                 candleList,
@@ -294,10 +292,13 @@ public class ForexMonitorService extends Service {
                     continue;
                 }
 
+                /*
+                 * SignalResult uses "action".
+                 */
                 if (!"BUY".equals(
-                        result.signal)
+                        result.action)
                         && !"SELL".equals(
-                        result.signal)) {
+                        result.action)) {
                     continue;
                 }
 
@@ -314,8 +315,8 @@ public class ForexMonitorService extends Service {
             } catch (Exception ignored) {
 
                 /*
-                 * One failed market must not stop
-                 * the other markets.
+                 * One failed symbol must not
+                 * stop the scanner.
                  */
             }
         }
@@ -332,14 +333,14 @@ public class ForexMonitorService extends Service {
                 Instant.now();
 
         /*
-         * Use your existing MarketClock.
+         * Use existing MarketClock.
          */
         if (!MarketClock.isForexOpen(now)) {
             return false;
         }
 
         /*
-         * User requested Monday-Friday only.
+         * Explicit Monday-Friday requirement.
          */
         ZonedDateTime newYork =
                 now.atZone(
@@ -488,9 +489,9 @@ public class ForexMonitorService extends Service {
                         .build();
 
         try (Response response =
-                     httpClient.newCall(
-                             request
-                     ).execute()) {
+                     httpClient
+                             .newCall(request)
+                             .execute()) {
 
             if (!response.isSuccessful()
                     || response.body() == null) {
@@ -503,10 +504,6 @@ public class ForexMonitorService extends Service {
             JSONObject json =
                     new JSONObject(body);
 
-            /*
-             * Error responses from Twelve Data
-             * do not contain "values".
-             */
             if (!json.has("values")) {
                 return null;
             }
@@ -517,7 +514,7 @@ public class ForexMonitorService extends Service {
             /*
              * Twelve Data returns newest first.
              *
-             * Convert to oldest -> newest.
+             * SignalEngine receives oldest -> newest.
              */
             JSONArray chronological =
                     new JSONArray();
@@ -547,7 +544,7 @@ public class ForexMonitorService extends Service {
             SignalResult result) {
 
         /*
-         * Never notify when market is closed.
+         * Never notify while closed.
          */
         if (!isSignalGenerationAllowed()) {
             return;
@@ -561,18 +558,28 @@ public class ForexMonitorService extends Service {
             return;
         }
 
+        /*
+         * SignalResult actual field names:
+         *
+         * action
+         * entry
+         * sl
+         * tp1
+         * tp2
+         * tp3
+         */
         String fingerprint =
                 symbol
                         + "|"
                         + timeframe
                         + "|"
-                        + result.signal
+                        + result.action
                         + "|"
                         + result.entry
                         + "|"
-                        + result.stopLoss
+                        + result.sl
                         + "|"
-                        + result.takeProfit1;
+                        + result.tp1;
 
         String key =
                 symbol
@@ -592,9 +599,6 @@ public class ForexMonitorService extends Service {
                 result
         );
 
-        /*
-         * Record only after notification is sent.
-         */
         lastAlertFingerprint.put(
                 key,
                 fingerprint
@@ -619,9 +623,13 @@ public class ForexMonitorService extends Service {
                                 NOTIFICATION_SERVICE
                         );
 
+        if (manager == null) {
+            return;
+        }
+
         String title =
                 "ForexPilot AI — "
-                        + result.signal;
+                        + result.action;
 
         String message =
                 symbol
@@ -635,13 +643,13 @@ public class ForexMonitorService extends Service {
                 "Entry: "
                         + format(result.entry)
                         + "\nSL: "
-                        + format(result.stopLoss)
+                        + format(result.sl)
                         + "\nTP1: "
-                        + format(result.takeProfit1)
+                        + format(result.tp1)
                         + "\nTP2: "
-                        + format(result.takeProfit2)
+                        + format(result.tp2)
                         + "\nTP3: "
-                        + format(result.takeProfit3);
+                        + format(result.tp3);
 
         Notification notification =
                 new NotificationCompat.Builder(
@@ -649,7 +657,8 @@ public class ForexMonitorService extends Service {
                         CHANNEL_ID
                 )
                         .setSmallIcon(
-                                android.R.drawable.ic_dialog_info
+                                android.R.drawable
+                                        .ic_dialog_info
                         )
                         .setContentTitle(title)
                         .setContentText(message)
@@ -674,8 +683,9 @@ public class ForexMonitorService extends Service {
                         (
                                 symbol
                                         + timeframe
-                                        + result.signal
-                                        + System.currentTimeMillis()
+                                        + result.action
+                                        + System
+                                        .currentTimeMillis()
                         ).hashCode()
                 );
 
@@ -722,6 +732,7 @@ public class ForexMonitorService extends Service {
                     );
 
             if (manager != null) {
+
                 manager.createNotificationChannel(
                         channel
                 );
@@ -746,6 +757,7 @@ public class ForexMonitorService extends Service {
         }
 
         if (httpClient != null) {
+
             httpClient.dispatcher()
                     .executorService()
                     .shutdown();
