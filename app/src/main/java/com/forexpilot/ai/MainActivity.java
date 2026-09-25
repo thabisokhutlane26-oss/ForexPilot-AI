@@ -108,11 +108,11 @@ public class MainActivity extends AppCompatActivity {
             "selected_timeframe";
 
     /*
-     * Daily signal protection.
-     *
-     * This uses the SAME preferences as
-     * ForexMonitorService.
+     * =========================================================
+     * DAILY NEW SIGNAL PROTECTION
+     * =========================================================
      */
+
     private static final int MAX_DAILY_SIGNALS = 2;
 
     private static final String PREF_SIGNAL_DATE =
@@ -353,8 +353,8 @@ public class MainActivity extends AppCompatActivity {
                 Instant.now();
 
         /*
-         * Existing MarketClock controls the
-         * actual forex opening/closing window.
+         * MarketClock controls the actual
+         * forex opening/closing window.
          */
         if (!MarketClock.isForexOpen(now)) {
             return false;
@@ -1306,6 +1306,24 @@ public class MainActivity extends AppCompatActivity {
     private void startScanner(
             String apiKey) {
 
+        /*
+         * Don't request candle data while the
+         * forex market is closed.
+         */
+        if (!isForexWeekdayOpen()) {
+
+            updateMarketStatus();
+
+            updated.setText(
+                    "MARKET CLOSED • "
+                            + "NEW SIGNALS PAUSED"
+            );
+
+            updateScanner();
+
+            return;
+        }
+
         for (String symbol : SYMBOLS) {
 
             if (!results.containsKey(symbol)) {
@@ -1368,6 +1386,62 @@ public class MainActivity extends AppCompatActivity {
     private void refreshSignals(
             String apiKey) {
 
+        /*
+         * IMPORTANT:
+         *
+         * Do not request new candle data when
+         * the forex market is closed.
+         *
+         * This prevents unnecessary Twelve Data
+         * API usage while still allowing existing
+         * active trades to be tracked by price().
+         */
+        if (!MarketClock.isForexOpen(
+                Instant.now()
+        )) {
+
+            runOnUiThread(() -> {
+
+                updateMarketStatus();
+
+                updated.setText(
+                        "MARKET CLOSED • "
+                                + "NEW SIGNALS PAUSED"
+                );
+            });
+
+            return;
+        }
+
+        /*
+         * Explicit Monday-Friday protection.
+         */
+        ZonedDateTime newYork =
+                Instant.now().atZone(
+                        ZoneId.of(
+                                "America/New_York"
+                        )
+                );
+
+        DayOfWeek day =
+                newYork.getDayOfWeek();
+
+        if (day == DayOfWeek.SATURDAY
+                || day == DayOfWeek.SUNDAY) {
+
+            runOnUiThread(() -> {
+
+                updateMarketStatus();
+
+                updated.setText(
+                        "WEEKEND • "
+                                + "NEW SIGNALS PAUSED"
+                );
+            });
+
+            return;
+        }
+
         runOnUiThread(() ->
                 updated.setText(
                         "Refreshing "
@@ -1415,6 +1489,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean isForexWeekdayOpen() {
+
+        Instant now =
+                Instant.now();
+
+        if (!MarketClock.isForexOpen(now)) {
+            return false;
+        }
+
+        ZonedDateTime newYork =
+                now.atZone(
+                        ZoneId.of(
+                                "America/New_York"
+                        )
+                );
+
+        DayOfWeek day =
+                newYork.getDayOfWeek();
+
+        return day != DayOfWeek.SATURDAY
+                && day != DayOfWeek.SUNDAY;
+    }
+
     private void updateMarketStatus() {
 
         boolean open =
@@ -1422,8 +1519,25 @@ public class MainActivity extends AppCompatActivity {
                         Instant.now()
                 );
 
+        ZonedDateTime newYork =
+                Instant.now().atZone(
+                        ZoneId.of(
+                                "America/New_York"
+                        )
+                );
+
+        DayOfWeek day =
+                newYork.getDayOfWeek();
+
+        boolean weekday =
+                day != DayOfWeek.SATURDAY
+                        && day != DayOfWeek.SUNDAY;
+
+        boolean actuallyOpen =
+                open && weekday;
+
         market.setText(
-                open
+                actuallyOpen
                         ? "FOREX MARKET: OPEN"
                         : "FOREX MARKET: CLOSED"
         );
@@ -2056,7 +2170,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /*
-         * WAIT does not create a new signal.
+         * WAIT never creates a new signal.
          */
         if ("WAIT".equals(newDirection)) {
 
@@ -2069,14 +2183,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /*
-         * =====================================================
-         * IMPORTANT:
-         * BUY/SELL detected while market is closed
-         * must NOT become a new signal.
-         *
-         * Existing active trades are still tracked
-         * separately through price().
-         * =====================================================
+         * No new BUY/SELL while market is closed.
          */
         if (!isNewSignalAllowed()) {
 
@@ -2097,8 +2204,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /*
-         * If this symbol already has an active trade,
-         * don't create another new trade for it.
+         * Existing active trades continue tracking.
+         * Never create a duplicate trade for the same pair.
          */
         SignalResult existingTrade =
                 activeTrades.get(symbol);
@@ -2124,6 +2231,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        /*
+         * First confirmed BUY/SELL after WAIT.
+         */
         if ("WAIT".equals(
                 previousDirection
         )) {
@@ -2136,6 +2246,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        /*
+         * Same direction continues.
+         */
         if (previousDirection.equals(
                 newDirection
         )) {
@@ -2153,6 +2266,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        /*
+         * Direction changed.
+         * Require confirmation before creating
+         * a new signal.
+         */
         boolean waiting =
                 reversalWaiting.containsKey(
                         symbol
@@ -2190,11 +2308,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /*
-         * Second confirmation for reversal.
-         *
-         * Daily limit is checked again.
+         * Second confirmation.
+         * Check market and daily limit again.
          */
         if (!isNewSignalAllowed()) {
+
             return;
         }
 
@@ -2213,15 +2331,28 @@ public class MainActivity extends AppCompatActivity {
             String symbol,
             SignalResult signal) {
 
+        if (signal == null) {
+            return;
+        }
+
         /*
-         * Final protection before creating a NEW signal.
+         * Only BUY/SELL can become new trades.
+         */
+        if (!"BUY".equals(signal.action)
+                && !"SELL".equals(signal.action)) {
+
+            return;
+        }
+
+        /*
+         * Final market protection.
          */
         if (!isNewSignalAllowed()) {
             return;
         }
 
         /*
-         * Do not duplicate an existing active trade.
+         * Do not duplicate an active trade.
          */
         SignalResult existing =
                 activeTrades.get(symbol);
@@ -2238,7 +2369,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /*
-         * Count this NEW signal.
+         * Final daily-limit check.
+         */
+        if (getDailySignalCount()
+                >= MAX_DAILY_SIGNALS) {
+
+            return;
+        }
+
+        /*
+         * Count ONLY a genuinely new signal.
          */
         increaseDailySignalCount();
 
