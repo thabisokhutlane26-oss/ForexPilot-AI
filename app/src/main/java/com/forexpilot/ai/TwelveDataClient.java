@@ -92,19 +92,11 @@ public class TwelveDataClient {
             return;
         }
 
-        currentSymbol =
-                symbol.trim();
-
-        currentApiKey =
-                apiKey.trim();
+        currentSymbol = symbol.trim();
+        currentApiKey = apiKey.trim();
 
         latestPrice = 0;
-
         connected = false;
-
-        /*
-         * Close an old connection first.
-         */
 
         if (webSocket != null) {
 
@@ -210,20 +202,13 @@ public class TwelveDataClient {
                                     JSONObject object =
                                             new JSONObject(text);
 
-                                    /*
-                                     * Twelve Data may send
-                                     * heartbeat/status messages.
-                                     */
-
                                     String event =
                                             object.optString(
                                                     "event",
                                                     ""
                                             );
 
-                                    if ("error".equalsIgnoreCase(
-                                            event
-                                    )) {
+                                    if ("error".equalsIgnoreCase(event)) {
 
                                         callback.error(
                                                 object.optString(
@@ -235,10 +220,6 @@ public class TwelveDataClient {
                                         return;
                                     }
 
-                                    /*
-                                     * Live price.
-                                     */
-
                                     if (object.has("price")) {
 
                                         double price =
@@ -249,22 +230,13 @@ public class TwelveDataClient {
 
                                         if (price > 0) {
 
-                                            latestPrice =
-                                                    price;
+                                            latestPrice = price;
 
-                                            callback.price(
-                                                    price
-                                            );
+                                            callback.price(price);
                                         }
                                     }
 
                                 } catch (Exception ignored) {
-
-                                    /*
-                                     * Ignore malformed or
-                                     * non-price WebSocket
-                                     * messages.
-                                     */
                                 }
                             }
 
@@ -305,33 +277,15 @@ public class TwelveDataClient {
                 );
     }
 
-    /*
-     * ========================================================
-     * GET LAST LIVE PRICE
-     * ========================================================
-     */
-
     public double getLatestPrice() {
 
         return latestPrice;
     }
 
-    /*
-     * ========================================================
-     * CONNECTION STATUS
-     * ========================================================
-     */
-
     public boolean isConnected() {
 
         return connected;
     }
-
-    /*
-     * ========================================================
-     * GET CURRENT SYMBOL
-     * ========================================================
-     */
 
     public String getCurrentSymbol() {
 
@@ -340,7 +294,9 @@ public class TwelveDataClient {
 
     /*
      * ========================================================
-     * GET CANDLES
+     * NORMAL SIGNAL CANDLE REQUEST
+     *
+     * Uses 100 candles to keep scanner API usage reasonable.
      * ========================================================
      */
 
@@ -348,6 +304,48 @@ public class TwelveDataClient {
             String symbol,
             String interval,
             String apiKey) {
+
+        requestCandles(
+                symbol,
+                interval,
+                apiKey,
+                100
+        );
+    }
+
+    /*
+     * ========================================================
+     * LARGE CHART HISTORY REQUEST
+     *
+     * Can request up to 5,000 candles when MainActivity
+     * specifically asks for chart history.
+     * ========================================================
+     */
+
+    public void chartCandles(
+            String symbol,
+            String interval,
+            String apiKey) {
+
+        requestCandles(
+                symbol,
+                interval,
+                apiKey,
+                5000
+        );
+    }
+
+    /*
+     * ========================================================
+     * CANDLE REQUEST
+     * ========================================================
+     */
+
+    private void requestCandles(
+            String symbol,
+            String interval,
+            String apiKey,
+            int outputSize) {
 
         if (symbol == null
                 || symbol.trim().isEmpty()) {
@@ -379,36 +377,39 @@ public class TwelveDataClient {
             return;
         }
 
+        String cleanSymbol = symbol.trim();
+        String cleanInterval = interval.trim();
+        String cleanApiKey = apiKey.trim();
+
         String encodedSymbol;
-
         String encodedInterval;
-
         String encodedKey;
 
         try {
 
             encodedSymbol =
                     URLEncoder.encode(
-                            symbol.trim(),
+                            cleanSymbol,
                             StandardCharsets.UTF_8.name()
                     );
 
             encodedInterval =
                     URLEncoder.encode(
-                            interval.trim(),
+                            cleanInterval,
                             StandardCharsets.UTF_8.name()
                     );
 
             encodedKey =
                     URLEncoder.encode(
-                            apiKey.trim(),
+                            cleanApiKey,
                             StandardCharsets.UTF_8.name()
                     );
 
         } catch (Exception exception) {
 
             callback.error(
-                    "Unable to prepare candle request."
+                    cleanSymbol
+                            + ": Unable to prepare candle request."
             );
 
             return;
@@ -418,7 +419,8 @@ public class TwelveDataClient {
                 "https://api.twelvedata.com/time_series"
                         + "?symbol=" + encodedSymbol
                         + "&interval=" + encodedInterval
-                        + "&outputsize=100"
+                        + "&outputsize=" + outputSize
+                        + "&order=asc"
                         + "&apikey=" + encodedKey;
 
         Request request =
@@ -436,10 +438,12 @@ public class TwelveDataClient {
                             IOException exception) {
 
                         callback.error(
-                                safeMessage(
-                                        exception,
-                                        "Candle request failed."
-                                )
+                                cleanSymbol
+                                        + ": "
+                                        + safeMessage(
+                                                exception,
+                                                "Candle request failed."
+                                        )
                         );
                     }
 
@@ -453,7 +457,8 @@ public class TwelveDataClient {
                             if (response.body() == null) {
 
                                 callback.error(
-                                        "Empty response from Twelve Data."
+                                        cleanSymbol
+                                                + ": Empty response from Twelve Data."
                                 );
 
                                 return;
@@ -466,7 +471,8 @@ public class TwelveDataClient {
                                     || body.trim().isEmpty()) {
 
                                 callback.error(
-                                        "Empty response from Twelve Data."
+                                        cleanSymbol
+                                                + ": Empty response from Twelve Data."
                                 );
 
                                 return;
@@ -476,8 +482,8 @@ public class TwelveDataClient {
                                     new JSONObject(body);
 
                             /*
-                             * API errors do not contain
-                             * a values array.
+                             * Twelve Data can return an error
+                             * message inside a normal HTTP response.
                              */
 
                             if (!object.has("values")) {
@@ -490,12 +496,29 @@ public class TwelveDataClient {
 
                                 if (message.isEmpty()) {
 
-                                    message =
-                                            "No candle data received.";
+                                    String code =
+                                            object.optString(
+                                                    "code",
+                                                    ""
+                                            );
+
+                                    if (!code.isEmpty()) {
+
+                                        message =
+                                                "Twelve Data error code "
+                                                        + code
+                                                        + ".";
+                                    } else {
+
+                                        message =
+                                                "No candle data received.";
+                                    }
                                 }
 
                                 callback.error(
-                                        message
+                                        cleanSymbol
+                                                + ": "
+                                                + message
                                 );
 
                                 return;
@@ -509,7 +532,8 @@ public class TwelveDataClient {
                             if (values.length() == 0) {
 
                                 callback.error(
-                                        "Twelve Data returned no candles."
+                                        cleanSymbol
+                                                + ": Twelve Data returned no candles."
                                 );
 
                                 return;
@@ -518,20 +542,10 @@ public class TwelveDataClient {
                             List<Candle> list =
                                     new ArrayList<>();
 
-                            /*
-                             * Twelve Data normally returns
-                             * newest candle first.
-                             *
-                             * Reverse it so our app has:
-                             *
-                             * oldest → newest
-                             */
-
                             for (
-                                    int i =
-                                            values.length() - 1;
-                                    i >= 0;
-                                    i--
+                                    int i = 0;
+                                    i < values.length();
+                                    i++
                             ) {
 
                                 JSONObject candle =
@@ -582,23 +596,24 @@ public class TwelveDataClient {
                             if (list.isEmpty()) {
 
                                 callback.error(
-                                        "No valid candle data received."
+                                        cleanSymbol
+                                                + ": No valid candle data received."
                                 );
 
                                 return;
                             }
 
-                            callback.candles(
-                                    list
-                            );
+                            callback.candles(list);
 
                         } catch (Exception exception) {
 
                             callback.error(
-                                    safeMessage(
-                                            exception,
-                                            "Unable to read candle data."
-                                    )
+                                    cleanSymbol
+                                            + ": "
+                                            + safeMessage(
+                                                    exception,
+                                                    "Unable to read candle data."
+                                            )
                             );
 
                         } finally {
@@ -631,14 +646,6 @@ public class TwelveDataClient {
 
             webSocket = null;
         }
-
-        /*
-         * Do not permanently shut down the OkHttp
-         * executor here.
-         *
-         * The same client may be reused later
-         * when the user changes market/timeframe.
-         */
     }
 
     /*
