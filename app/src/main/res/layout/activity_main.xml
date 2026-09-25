@@ -4,37 +4,50 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0B0F14"
+    android:background="#080B10"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="14dp">
 
+        <!-- HEADER -->
         <TextView
             android:id="@+id/title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="FOREXPILOT AI"
+            android:text="ForexPilot AI"
             android:textColor="#FFFFFF"
             android:textSize="28sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:paddingTop="10dp"
+            android:paddingTop="8dp"
             android:paddingBottom="4dp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AI-POWERED FOREX MARKET ANALYSIS"
+            android:textColor="#7C8798"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:letterSpacing="0.08"
+            android:paddingBottom="14dp" />
+
+        <!-- MARKET STATUS -->
         <TextView
             android:id="@+id/market"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="FOREX MARKET: CHECKING..."
-            android:textColor="#66FF99"
-            android:textSize="15sp"
+            android:textColor="#4CFF78"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:padding="6dp" />
+            android:background="#111820"
+            android:padding="12dp" />
 
         <TextView
             android:id="@+id/session"
@@ -44,10 +57,9 @@
             android:textColor="#AAB4C3"
             android:textSize="13sp"
             android:gravity="center"
-            android:paddingBottom="14dp" />
+            android:padding="8dp" />
 
         <!-- TIMEFRAME -->
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -55,60 +67,65 @@
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold"
+            android:paddingTop="10dp"
             android:paddingBottom="8dp" />
 
-        <HorizontalScrollView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:scrollbars="none">
+            android:orientation="horizontal">
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
+            <Button
+                android:id="@+id/tf5"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="5M"
+                android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/tf5"
-                    android:layout_width="70dp"
-                    android:layout_height="48dp"
-                    android:text="5M" />
+            <Button
+                android:id="@+id/tf15"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="15M"
+                android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/tf15"
-                    android:layout_width="70dp"
-                    android:layout_height="48dp"
-                    android:text="15M" />
+            <Button
+                android:id="@+id/tf30"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="30M"
+                android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/tf30"
-                    android:layout_width="70dp"
-                    android:layout_height="48dp"
-                    android:text="30M" />
+            <Button
+                android:id="@+id/tf1h"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="1H"
+                android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/tf1h"
-                    android:layout_width="70dp"
-                    android:layout_height="48dp"
-                    android:text="1H" />
+            <Button
+                android:id="@+id/tf4h"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="4H"
+                android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/tf4h"
-                    android:layout_width="70dp"
-                    android:layout_height="48dp"
-                    android:text="4H" />
+            <Button
+                android:id="@+id/tf1d"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="1D"
+                android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/tf1d"
-                    android:layout_width="70dp"
-                    android:layout_height="48dp"
-                    android:text="1D" />
-
-            </LinearLayout>
-
-        </HorizontalScrollView>
+        </LinearLayout>
 
         <!-- MARKETS -->
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -116,7 +133,7 @@
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:paddingTop="18dp"
+            android:paddingTop="14dp"
             android:paddingBottom="8dp" />
 
         <HorizontalScrollView
@@ -131,264 +148,234 @@
 
                 <Button
                     android:id="@+id/marketGold"
-                    android:layout_width="95dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
-                    android:text="XAU/USD" />
+                    android:text="XAU/USD"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/marketEur"
-                    android:layout_width="95dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
-                    android:text="EUR/USD" />
+                    android:text="EUR/USD"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/marketGbp"
-                    android:layout_width="95dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
-                    android:text="GBP/USD" />
+                    android:text="GBP/USD"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/marketJpy"
-                    android:layout_width="95dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
-                    android:text="USD/JPY" />
+                    android:text="USD/JPY"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/marketNzd"
-                    android:layout_width="95dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
-                    android:text="NZD/USD" />
+                    android:text="NZD/USD"
+                    android:textSize="12sp" />
 
             </LinearLayout>
 
         </HorizontalScrollView>
 
-        <!-- PRICE CHART -->
-
-        <LinearLayout
+        <!-- CHART -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#151B23"
-            android:padding="12dp"
-            android:layout_marginTop="18dp">
+            android:text="LIVE PRICE CHART"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📊 PRICE CHART"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:paddingBottom="10dp" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="440dp"
+            android:background="#0B0F14">
 
-            <com.github.mikephil.charting.charts.CandleStickChart
+            <WebView
                 android:id="@+id/candleChart"
                 android:layout_width="match_parent"
-                android:layout_height="360dp"
-                android:background="#0B0F14" />
+                android:layout_height="match_parent"
+                android:background="#0B0F14"
+                android:overScrollMode="never"
+                android:scrollbars="none" />
 
-        </LinearLayout>
+        </FrameLayout>
+
+        <!-- CHART INFORMATION -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Interactive chart • Drag • Zoom • Scroll"
+            android:textColor="#707B8C"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:padding="6dp" />
 
         <!-- BEST SIGNAL -->
-
-        <LinearLayout
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#151B23"
-            android:padding="18dp"
-            android:layout_marginTop="18dp">
+            android:text="BEST SIGNAL"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="14dp"
+            android:paddingBottom="8dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="⭐ BEST SIGNAL NOW"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+        <TextView
+            android:id="@+id/bestSignal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WAIT"
+            android:textColor="#FFD54F"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#111820"
+            android:padding="16dp" />
 
-            <TextView
-                android:id="@+id/bestSignal"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="WAIT"
-                android:textColor="#FFD54F"
-                android:textSize="30sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:paddingTop="16dp"
-                android:paddingBottom="12dp" />
-
-            <TextView
-                android:id="@+id/bestDetails"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Waiting for market analysis..."
-                android:textColor="#D6DCE5"
-                android:textSize="16sp"
-                android:gravity="center"
-                android:padding="8dp" />
-
-        </LinearLayout>
+        <TextView
+            android:id="@+id/bestDetails"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Waiting for market analysis..."
+            android:textColor="#C7D0DC"
+            android:textSize="14sp"
+            android:background="#0F141B"
+            android:padding="14dp"
+            android:lineSpacingExtra="3dp" />
 
         <!-- CONFIRMATION -->
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/confirmation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#151B23"
-            android:padding="18dp"
-            android:layout_marginTop="12dp">
+            android:text="WAITING FOR CONFIRMATION"
+            android:textColor="#FFD54F"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#111820"
+            android:padding="14dp"
+            android:layout_marginTop="10dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="🕯️ CONFIRMATION"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/confirmation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="WAITING FOR CONFIRMATION"
-                android:textColor="#FFD54F"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:paddingTop="14dp" />
-
-        </LinearLayout>
-
-        <!-- MARKET SCANNER -->
+        <!-- SCANNER -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MARKET SCANNER"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="18dp"
+            android:paddingBottom="8dp" />
 
         <TextView
             android:id="@+id/scanner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="5 MINUTE MARKET SCANNER"
-            android:textColor="#D6DCE5"
-            android:textSize="15sp"
-            android:background="#11161D"
-            android:padding="16dp"
-            android:layout_marginTop="12dp" />
+            android:text="Starting live market scanner..."
+            android:textColor="#C7D0DC"
+            android:textSize="13sp"
+            android:background="#0F141B"
+            android:padding="14dp"
+            android:lineSpacingExtra="3dp" />
 
         <!-- PERFORMANCE -->
-
-        <LinearLayout
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#151B23"
-            android:padding="18dp"
-            android:layout_marginTop="12dp">
+            android:text="PERFORMANCE"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="18dp"
+            android:paddingBottom="8dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📊 PERFORMANCE"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/performanceSummary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="WIN RATE: 0%&#10;&#10;WINS: 0&#10;LOSSES: 0&#10;OPEN: 0&#10;EXPIRED: 0"
-                android:textColor="#D6DCE5"
-                android:textSize="16sp"
-                android:gravity="center"
-                android:paddingTop="16dp"
-                android:paddingBottom="8dp" />
-
-        </LinearLayout>
-
-        <!-- CURRENT SIGNAL STATUS -->
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/performanceSummary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#151B23"
-            android:padding="18dp"
-            android:layout_marginTop="12dp">
+            android:text="WIN RATE: 0.0%&#10;&#10;WINS: 0&#10;LOSSES: 0&#10;OPEN: 0&#10;EXPIRED: 0"
+            android:textColor="#C7D0DC"
+            android:textSize="14sp"
+            android:background="#0F141B"
+            android:padding="14dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📌 SIGNAL STATUS"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/signalStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="WAITING FOR SIGNAL"
-                android:textColor="#FFD54F"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:paddingTop="14dp" />
-
-            <TextView
-                android:id="@+id/signalTime"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Signal time: --"
-                android:textColor="#8F9AAA"
-                android:textSize="13sp"
-                android:gravity="center"
-                android:paddingTop="8dp" />
-
-            <TextView
-                android:id="@+id/signalResult"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Result: --"
-                android:textColor="#D6DCE5"
-                android:textSize="14sp"
-                android:gravity="center"
-                android:paddingTop="6dp" />
-
-        </LinearLayout>
-
-        <!-- SIGNAL HISTORY -->
-
-        <LinearLayout
+        <!-- SIGNAL STATUS -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#151B23"
-            android:padding="18dp"
-            android:layout_marginTop="12dp">
+            android:text="SIGNAL STATUS"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="18dp"
+            android:paddingBottom="8dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📜 SIGNAL HISTORY"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+        <TextView
+            android:id="@+id/signalStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WAITING FOR SIGNAL"
+            android:textColor="#FFD54F"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="#111820"
+            android:padding="14dp" />
 
-            <TextView
-                android:id="@+id/history"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="No completed signals yet."
-                android:textColor="#AAB4C3"
-                android:textSize="14sp"
-                android:paddingTop="14dp" />
+        <TextView
+            android:id="@+id/signalTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Signal time: --"
+            android:textColor="#8F9AAA"
+            android:textSize="13sp"
+            android:padding="8dp" />
 
-        </LinearLayout>
+        <TextView
+            android:id="@+id/signalResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Result: --"
+            android:textColor="#8F9AAA"
+            android:textSize="13sp"
+            android:padding="8dp" />
+
+        <!-- HISTORY -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="SIGNAL HISTORY"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingTop="18dp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/history"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No signal history yet."
+            android:textColor="#C7D0DC"
+            android:textSize="13sp"
+            android:background="#0F141B"
+            android:padding="14dp"
+            android:lineSpacingExtra="3dp" />
 
         <!-- ACTION BUTTONS -->
-
         <Button
             android:id="@+id/refreshButton"
             android:layout_width="match_parent"
@@ -416,6 +403,7 @@
             android:textStyle="bold"
             android:layout_marginTop="12dp" />
 
+        <!-- UPDATED -->
         <TextView
             android:id="@+id/updated"
             android:layout_width="match_parent"
@@ -425,6 +413,16 @@
             android:textSize="13sp"
             android:gravity="center"
             android:padding="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ForexPilot AI • Market analysis tool"
+            android:textColor="#4F5968"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="20dp" />
 
     </LinearLayout>
 
