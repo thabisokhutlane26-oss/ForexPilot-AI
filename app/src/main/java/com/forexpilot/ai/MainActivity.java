@@ -27,7 +27,10 @@ import com.google.firebase.auth.FirebaseAuth;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -103,6 +106,20 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String PREF_TIMEFRAME =
             "selected_timeframe";
+
+    /*
+     * Daily signal protection.
+     *
+     * This uses the SAME preferences as
+     * ForexMonitorService.
+     */
+    private static final int MAX_DAILY_SIGNALS = 2;
+
+    private static final String PREF_SIGNAL_DATE =
+            "signal_date";
+
+    private static final String PREF_DAILY_SIGNAL_COUNT =
+            "daily_signal_count";
 
     private String selectedTimeframe = "5min";
     private String selectedMarket = "ALL";
@@ -180,6 +197,8 @@ public class MainActivity extends AppCompatActivity {
         firebaseAuth =
                 FirebaseAuth.getInstance();
 
+        resetDailyCounterIfNeeded();
+
         loadSavedHistory();
         loadActiveSignals();
 
@@ -247,6 +266,8 @@ public class MainActivity extends AppCompatActivity {
                     public void run() {
 
                         updateMarketStatus();
+
+                        resetDailyCounterIfNeeded();
 
                         handler.postDelayed(
                                 this,
@@ -316,6 +337,131 @@ public class MainActivity extends AppCompatActivity {
                     serviceIntent
             );
         }
+    }
+
+    /*
+     * =========================================================
+     * MARKET SIGNAL PROTECTION
+     * =========================================================
+     */
+
+    private boolean isNewSignalAllowed() {
+
+        resetDailyCounterIfNeeded();
+
+        Instant now =
+                Instant.now();
+
+        /*
+         * Existing MarketClock controls the
+         * actual forex opening/closing window.
+         */
+        if (!MarketClock.isForexOpen(now)) {
+            return false;
+        }
+
+        /*
+         * Explicit Monday-Friday protection.
+         */
+        ZonedDateTime newYork =
+                now.atZone(
+                        ZoneId.of(
+                                "America/New_York"
+                        )
+                );
+
+        DayOfWeek day =
+                newYork.getDayOfWeek();
+
+        if (day == DayOfWeek.SATURDAY
+                || day == DayOfWeek.SUNDAY) {
+
+            return false;
+        }
+
+        /*
+         * Maximum two NEW signals per day.
+         */
+        return getDailySignalCount()
+                < MAX_DAILY_SIGNALS;
+    }
+
+    private void resetDailyCounterIfNeeded() {
+
+        String today =
+                ZonedDateTime.now(
+                        ZoneId.of(
+                                "Africa/Johannesburg"
+                        )
+                )
+                .toLocalDate()
+                .toString();
+
+        SharedPreferences prefs =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        String savedDate =
+                prefs.getString(
+                        PREF_SIGNAL_DATE,
+                        ""
+                );
+
+        if (!today.equals(savedDate)) {
+
+            prefs.edit()
+                    .putString(
+                            PREF_SIGNAL_DATE,
+                            today
+                    )
+                    .putInt(
+                            PREF_DAILY_SIGNAL_COUNT,
+                            0
+                    )
+                    .apply();
+        }
+    }
+
+    private int getDailySignalCount() {
+
+        SharedPreferences prefs =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        return prefs.getInt(
+                PREF_DAILY_SIGNAL_COUNT,
+                0
+        );
+    }
+
+    private void increaseDailySignalCount() {
+
+        SharedPreferences prefs =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        int current =
+                prefs.getInt(
+                        PREF_DAILY_SIGNAL_COUNT,
+                        0
+                );
+
+        if (current >= MAX_DAILY_SIGNALS) {
+            return;
+        }
+
+        prefs.edit()
+                .putInt(
+                        PREF_DAILY_SIGNAL_COUNT,
+                        current + 1
+                )
+                .apply();
     }
 
     /*
@@ -393,8 +539,7 @@ public class MainActivity extends AppCompatActivity {
                 + "<script "
                 + "src=\"https://unpkg.com/"
                 + "lightweight-charts/"
-                + "dist/"
-                + "lightweight-charts."
+                + "dist/lightweight-charts."
                 + "standalone.production.js\">"
                 + "</script>"
 
@@ -1910,11 +2055,70 @@ public class MainActivity extends AppCompatActivity {
             previousDirection = "WAIT";
         }
 
+        /*
+         * WAIT does not create a new signal.
+         */
         if ("WAIT".equals(newDirection)) {
 
             results.put(
                     symbol,
                     analyzed
+            );
+
+            return;
+        }
+
+        /*
+         * =====================================================
+         * IMPORTANT:
+         * BUY/SELL detected while market is closed
+         * must NOT become a new signal.
+         *
+         * Existing active trades are still tracked
+         * separately through price().
+         * =====================================================
+         */
+        if (!isNewSignalAllowed()) {
+
+            results.put(
+                    symbol,
+                    new SignalResult(
+                            "WAIT",
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0
+                    )
+            );
+
+            return;
+        }
+
+        /*
+         * If this symbol already has an active trade,
+         * don't create another new trade for it.
+         */
+        SignalResult existingTrade =
+                activeTrades.get(symbol);
+
+        if (existingTrade != null
+                && existingTrade.isOpen()) {
+
+            results.put(
+                    symbol,
+                    analyzed
+            );
+
+            lastMarketDirection.put(
+                    symbol,
+                    analyzed.action
+            );
+
+            reversalWaiting.put(
+                    symbol,
+                    false
             );
 
             return;
@@ -1985,6 +2189,15 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        /*
+         * Second confirmation for reversal.
+         *
+         * Daily limit is checked again.
+         */
+        if (!isNewSignalAllowed()) {
+            return;
+        }
+
         createNewMarketSignal(
                 symbol,
                 analyzed
@@ -1999,6 +2212,35 @@ public class MainActivity extends AppCompatActivity {
     private void createNewMarketSignal(
             String symbol,
             SignalResult signal) {
+
+        /*
+         * Final protection before creating a NEW signal.
+         */
+        if (!isNewSignalAllowed()) {
+            return;
+        }
+
+        /*
+         * Do not duplicate an existing active trade.
+         */
+        SignalResult existing =
+                activeTrades.get(symbol);
+
+        if (existing != null
+                && existing.isOpen()) {
+
+            results.put(
+                    symbol,
+                    signal
+            );
+
+            return;
+        }
+
+        /*
+         * Count this NEW signal.
+         */
+        increaseDailySignalCount();
 
         results.put(
                 symbol,
@@ -2271,6 +2513,10 @@ public class MainActivity extends AppCompatActivity {
                         price
                 );
 
+                /*
+                 * Existing trades continue tracking
+                 * even when the market is closed.
+                 */
                 checkActiveTrade(
                         symbol,
                         price
