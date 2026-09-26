@@ -147,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
             new Runnable() {
                 @Override
                 public void run() {
+
                     refreshSignals();
 
                     handler.postDelayed(
@@ -260,7 +261,6 @@ public class MainActivity extends AppCompatActivity {
 
             chartWorkspace =
                     holder.getLinearParent();
-
         }
 
         if (chartWorkspace != null) {
@@ -286,10 +286,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * Removes personal branding from the current XML without
-     * requiring an XML change.
-     */
     private void removePersonalBranding() {
 
         View root =
@@ -376,11 +372,11 @@ public class MainActivity extends AppCompatActivity {
 
                 } else {
 
-                    updateChart();
+                    requestChartCandles();
 
                     Toast.makeText(
                             this,
-                            "Market closed • showing last real market data",
+                            "Market closed • loading last real market data",
                             Toast.LENGTH_SHORT
                     ).show();
                 }
@@ -528,9 +524,14 @@ public class MainActivity extends AppCompatActivity {
         updateChart();
 
         if (isForexWeekdayOpen()) {
+
             refreshSignals();
+
         } else {
+
             updateMarketStatus();
+
+            requestChartCandles();
         }
     }
 
@@ -548,7 +549,14 @@ public class MainActivity extends AppCompatActivity {
         updateChart();
 
         if (isForexWeekdayOpen()) {
+
             refreshSignals();
+
+        } else {
+
+            updateMarketStatus();
+
+            requestChartCandles();
         }
     }
 
@@ -839,6 +847,14 @@ public class MainActivity extends AppCompatActivity {
 
             updateChart();
 
+            /*
+             * IMPORTANT:
+             * Market is closed, but we still request
+             * real historical candle data for the chart.
+             * This does NOT create a signal.
+             */
+            requestChartCandles();
+
             return;
         }
 
@@ -853,7 +869,12 @@ public class MainActivity extends AppCompatActivity {
 
         if (!isForexWeekdayOpen()) {
 
-            updateChart();
+            /*
+             * Do not generate signals while closed.
+             * But keep the chart supplied with real
+             * historical Twelve Data candles.
+             */
+            requestChartCandles();
 
             if (updated != null) {
 
@@ -891,6 +912,13 @@ public class MainActivity extends AppCompatActivity {
 
                 confirmation.setText(
                         "API KEY REQUIRED"
+                );
+            }
+
+            if (updated != null) {
+
+                updated.setText(
+                        "DATA ERROR • Twelve Data API key required"
                 );
             }
 
@@ -932,6 +960,12 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
+        /*
+         * Also make sure the selected chart has
+         * chart-sized real candle data.
+         */
+        requestChartCandles();
+
         updateChart();
     }
 
@@ -941,6 +975,239 @@ public class MainActivity extends AppCompatActivity {
                 "api_key",
                 ""
         );
+    }
+
+    /*
+     * =========================================================
+     * CHART-ONLY TWELVE DATA REQUEST
+     * =========================================================
+     *
+     * This is the important fix.
+     *
+     * It uses TwelveDataClient.chartCandles(), which requests
+     * real historical candles.
+     *
+     * It DOES NOT call processCurrentSignal().
+     *
+     * Therefore it can safely run when the Forex market is
+     * closed without creating a new BUY/SELL signal.
+     */
+
+    private void requestChartCandles() {
+
+        if (chartSymbol == null ||
+                chartSymbol.trim().isEmpty()) {
+
+            chartSymbol = "XAU/USD";
+        }
+
+        String apiKey = getApiKey();
+
+        if (apiKey == null ||
+                apiKey.trim().isEmpty()) {
+
+            if (updated != null) {
+
+                updated.setText(
+                        "DATA ERROR • Twelve Data API key required"
+                );
+            }
+
+            if (chartWebView != null &&
+                    chartReady) {
+
+                runChartJavaScript(
+                        "setChartMessage(" +
+                                "'DATA ERROR • API KEY REQUIRED'" +
+                                ");"
+                );
+            }
+
+            return;
+        }
+
+        final String requestedSymbol =
+                chartSymbol;
+
+        final String requestedTimeframe =
+                selectedTimeframe;
+
+        if (updated != null) {
+
+            updated.setText(
+                    "LOADING REAL MARKET DATA • " +
+                            requestedSymbol
+            );
+        }
+
+        TwelveDataClient chartClient =
+                new TwelveDataClient(
+                        new ChartCallback(
+                                requestedSymbol,
+                                requestedTimeframe
+                        )
+                );
+
+        chartClient.chartCandles(
+                requestedSymbol,
+                requestedTimeframe,
+                apiKey
+        );
+    }
+
+    private class ChartCallback
+            implements TwelveDataClient.Callback {
+
+        private final String symbol;
+        private final String timeframe;
+
+        ChartCallback(
+                String symbol,
+                String timeframe
+        ) {
+
+            this.symbol = symbol;
+            this.timeframe = timeframe;
+        }
+
+        @Override
+        public void price(double price) {
+            /*
+             * Chart historical data request does not
+             * need a price WebSocket.
+             */
+        }
+
+        @Override
+        public void candles(
+                List<Candle> candles
+        ) {
+
+            if (candles == null ||
+                    candles.isEmpty()) {
+
+                runOnUiThread(() -> {
+
+                    if (updated != null) {
+
+                        updated.setText(
+                                "DATA ERROR • No candles returned"
+                        );
+                    }
+
+                    if (chartWebView != null &&
+                            chartReady) {
+
+                        runChartJavaScript(
+                                "setChartMessage(" +
+                                        "'DATA ERROR • NO CANDLES RETURNED'" +
+                                        ");"
+                        );
+                    }
+                });
+
+                return;
+            }
+
+            final List<Candle> copy =
+                    new ArrayList<>(candles);
+
+            runOnUiThread(() -> {
+
+                /*
+                 * Only accept the result if the user
+                 * is still viewing the same pair and
+                 * timeframe.
+                 */
+                if (!symbol.equals(chartSymbol) ||
+                        !timeframe.equals(selectedTimeframe)) {
+
+                    return;
+                }
+
+                candleData.put(
+                        symbol,
+                        copy
+                );
+
+                saveCachedCandles(
+                        symbol,
+                        copy
+                );
+
+                updateChart();
+
+                if (updated != null) {
+
+                    if (isForexWeekdayOpen()) {
+
+                        updated.setText(
+                                "LIVE MARKET DATA • " +
+                                        symbol
+                        );
+
+                    } else {
+
+                        updated.setText(
+                                "REAL MARKET DATA • MARKET CLOSED • " +
+                                        symbol
+                        );
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void error(String message) {
+
+            runOnUiThread(() -> {
+
+                String safeMessage =
+                        message == null ||
+                                message.trim().isEmpty()
+                                ? "Unknown Twelve Data error"
+                                : message;
+
+                if (updated != null) {
+
+                    updated.setText(
+                            "DATA ERROR • " +
+                                    safeMessage
+                    );
+                }
+
+                if (chartWebView != null &&
+                        chartReady) {
+
+                    String safe =
+                            safeMessage
+                                    .replace(
+                                            "\\",
+                                            "\\\\"
+                                    )
+                                    .replace(
+                                            "'",
+                                            "\\'"
+                                    )
+                                    .replace(
+                                            "\n",
+                                            " "
+                                    )
+                                    .replace(
+                                            "\r",
+                                            " "
+                                    );
+
+                    runChartJavaScript(
+                            "setChartMessage(" +
+                                    "'DATA ERROR • " +
+                                    safe +
+                                    "'" +
+                                    ");"
+                    );
+                }
+            });
+        }
     }
 
     private class PairCallback
@@ -992,17 +1259,17 @@ public class MainActivity extends AppCompatActivity {
             List<Candle> copy =
                     new ArrayList<>(candles);
 
-            candleData.put(
-                    symbol,
-                    copy
-            );
-
-            saveCachedCandles(
-                    symbol,
-                    copy
-            );
-
             runOnUiThread(() -> {
+
+                candleData.put(
+                        symbol,
+                        copy
+                );
+
+                saveCachedCandles(
+                        symbol,
+                        copy
+                );
 
                 processCurrentSignal(
                         symbol,
@@ -1042,8 +1309,20 @@ public class MainActivity extends AppCompatActivity {
                                     ? "UNKNOWN DATA ERROR"
                                     : message
                                     .replace(
+                                            "\\",
+                                            "\\\\"
+                                    )
+                                    .replace(
                                             "'",
                                             "\\'"
+                                    )
+                                    .replace(
+                                            "\n",
+                                            " "
+                                    )
+                                    .replace(
+                                            "\r",
+                                            " "
                                     );
 
                     chartWebView.evaluateJavascript(
@@ -1405,8 +1684,8 @@ public class MainActivity extends AppCompatActivity {
             JSONArray array =
                     new JSONArray(json);
 
-            for (int i = 0;
-                 i < array.length();
+            for (int i=0;
+                 i<array.length();
                  i++) {
 
                 JSONObject object =
@@ -1609,7 +1888,6 @@ public class MainActivity extends AppCompatActivity {
                 "<script>" +
 
                 "var currentData=[];" +
-
                 "var signalLines=[];" +
                 "var drawingLines=[];" +
 
@@ -1946,6 +2224,7 @@ public class MainActivity extends AppCompatActivity {
                 "index:result[n].index," +
                 "value:value" +
                 "});" +
+
                 "}" +
 
                 "var signalMap={};" +
@@ -2135,7 +2414,6 @@ public class MainActivity extends AppCompatActivity {
                 "for(var i=0;i<count;i++){" +
 
                 "var c=visibleData[i];" +
-
                 "var x=left+(spacing*i)+(spacing/2);" +
 
                 "var openY=mapPrice(Number(c.open),range,top,bottom);" +
@@ -2703,7 +2981,7 @@ public class MainActivity extends AppCompatActivity {
 
                 statusText =
                         cached.isEmpty()
-                                ? "LAST MARKET DATA"
+                                ? "LAST REAL DATA"
                                 : "LAST REAL DATA • " +
                                 cached;
             }
@@ -3572,7 +3850,16 @@ public class MainActivity extends AppCompatActivity {
         updateChart();
 
         if (isForexWeekdayOpen()) {
+
             startLivePriceConnections();
+
+        } else {
+
+            /*
+             * If the app resumes while Forex is closed,
+             * make sure the selected chart gets real data.
+             */
+            requestChartCandles();
         }
     }
 
