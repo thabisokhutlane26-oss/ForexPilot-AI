@@ -148,6 +148,7 @@ public class MainActivity extends AppCompatActivity {
             new Runnable() {
                 @Override
                 public void run() {
+
                     refreshSignals();
 
                     handler.postDelayed(
@@ -159,16 +160,18 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
 
         setContentView(
                 com.forexpilot.ai.R.layout.activity_main
         );
 
-        preferences = getSharedPreferences(
-                PREFS_NAME,
-                MODE_PRIVATE
-        );
+        preferences =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                );
 
         signalStorage =
                 new SignalStorage(this);
@@ -228,7 +231,8 @@ public class MainActivity extends AppCompatActivity {
         candleChart =
                 findViewById(R.id.candleChart);
 
-        chartWebView = candleChart;
+        chartWebView =
+                candleChart;
 
         chartContainer =
                 findViewById(R.id.chartContainer);
@@ -268,14 +272,8 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.marketNzd);
 
         if (chartContainer != null) {
-            normalChartHeightDp = 390;
-        }
 
-        /*
-         * getParent() returns ViewParent.
-         * We safely check the type before casting.
-         */
-        if (chartContainer != null) {
+            normalChartHeightDp = 390;
 
             android.view.ViewParent parent =
                     chartContainer.getParent();
@@ -483,7 +481,8 @@ public class MainActivity extends AppCompatActivity {
             String timeframe
     ) {
 
-        selectedTimeframe = timeframe;
+        selectedTimeframe =
+                timeframe;
 
         preferences.edit()
                 .putString(
@@ -512,8 +511,11 @@ public class MainActivity extends AppCompatActivity {
             String symbol
     ) {
 
-        selectedMarket = symbol;
-        chartSymbol = symbol;
+        selectedMarket =
+                symbol;
+
+        chartSymbol =
+                symbol;
 
         loadCachedCandleData();
 
@@ -529,12 +531,41 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateTimeframeButtons() {
 
-        setButtonState(tf5, "5M", "5min");
-        setButtonState(tf15, "15M", "15min");
-        setButtonState(tf30, "30M", "30min");
-        setButtonState(tf1h, "1H", "1h");
-        setButtonState(tf4h, "4H", "4h");
-        setButtonState(tf1d, "1D", "1day");
+        setButtonState(
+                tf5,
+                "5M",
+                "5min"
+        );
+
+        setButtonState(
+                tf15,
+                "15M",
+                "15min"
+        );
+
+        setButtonState(
+                tf30,
+                "30M",
+                "30min"
+        );
+
+        setButtonState(
+                tf1h,
+                "1H",
+                "1h"
+        );
+
+        setButtonState(
+                tf4h,
+                "4H",
+                "4h"
+        );
+
+        setButtonState(
+                tf1d,
+                "1D",
+                "1day"
+        );
     }
 
     private void setButtonState(
@@ -549,13 +580,19 @@ public class MainActivity extends AppCompatActivity {
 
         button.setText(text);
 
-        if (timeframe.equals(selectedTimeframe)) {
+        if (timeframe.equals(
+                selectedTimeframe
+        )) {
 
-            button.setTextColor(Color.WHITE);
+            button.setTextColor(
+                    Color.WHITE
+            );
 
         } else {
 
-            button.setTextColor(Color.LTGRAY);
+            button.setTextColor(
+                    Color.LTGRAY
+            );
         }
     }
 
@@ -604,13 +641,19 @@ public class MainActivity extends AppCompatActivity {
 
         button.setText(text);
 
-        if (symbol.equals(selectedMarket)) {
+        if (symbol.equals(
+                selectedMarket
+        )) {
 
-            button.setTextColor(Color.WHITE);
+            button.setTextColor(
+                    Color.WHITE
+            );
 
         } else {
 
-            button.setTextColor(Color.LTGRAY);
+            button.setTextColor(
+                    Color.LTGRAY
+            );
         }
     }
 
@@ -637,7 +680,9 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
 
-        return MarketClock.isForexOpen(now);
+        return MarketClock.isForexOpen(
+                now
+        );
     }
 
     private void updateMarketStatus() {
@@ -721,7 +766,9 @@ public class MainActivity extends AppCompatActivity {
         return new SimpleDateFormat(
                 "yyyy-MM-dd",
                 Locale.US
-        ).format(new Date());
+        ).format(
+                new Date()
+        );
     }
 
     private void resetDailyCounterIfNeeded() {
@@ -735,7 +782,9 @@ public class MainActivity extends AppCompatActivity {
                         ""
                 );
 
-        if (!today.equals(savedDate)) {
+        if (!today.equals(
+                savedDate
+        )) {
 
             preferences.edit()
                     .putString(
@@ -884,11 +933,16 @@ public class MainActivity extends AppCompatActivity {
         List<String> symbolsToScan =
                 new ArrayList<>();
 
-        if ("ALL".equals(selectedMarket)) {
+        if ("ALL".equals(
+                selectedMarket
+        )) {
 
-            for (String symbol : SYMBOLS) {
+            for (String symbol :
+                    SYMBOLS) {
 
-                symbolsToScan.add(symbol);
+                symbolsToScan.add(
+                        symbol
+                );
             }
 
         } else {
@@ -907,7 +961,9 @@ public class MainActivity extends AppCompatActivity {
 
             TwelveDataClient client =
                     new TwelveDataClient(
-                            new PairCallback(symbol)
+                            new PairCallback(
+                                    symbol
+                            )
                     );
 
             client.candles(
@@ -933,12 +989,18 @@ public class MainActivity extends AppCompatActivity {
 
         private final String symbol;
 
-        PairCallback(String symbol) {
-            this.symbol = symbol;
+        PairCallback(
+                String symbol
+        ) {
+
+            this.symbol =
+                    symbol;
         }
 
         @Override
-        public void price(double price) {
+        public void price(
+                double price
+        ) {
 
             runOnUiThread(() -> {
 
@@ -957,7 +1019,9 @@ public class MainActivity extends AppCompatActivity {
 
                 updateBestSignalDisplay();
 
-                if (symbol.equals(chartSymbol)) {
+                if (symbol.equals(
+                        chartSymbol
+                )) {
 
                     updateChart();
                 }
@@ -976,7 +1040,9 @@ public class MainActivity extends AppCompatActivity {
             }
 
             List<Candle> copy =
-                    new ArrayList<>(candles);
+                    new ArrayList<>(
+                            candles
+                    );
 
             candleData.put(
                     symbol,
@@ -1061,8 +1127,12 @@ public class MainActivity extends AppCompatActivity {
                 result
         );
 
-        if (!"BUY".equals(result.action) &&
-                !"SELL".equals(result.action)) {
+        if (!"BUY".equals(
+                result.action
+        ) &&
+                !"SELL".equals(
+                        result.action
+                )) {
 
             updateBestSignalDisplay();
 
@@ -1070,7 +1140,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult existing =
-                activeTrades.get(symbol);
+                activeTrades.get(
+                        symbol
+                );
 
         if (existing != null &&
                 existing.isOpen()) {
@@ -1111,8 +1183,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (!"BUY".equals(result.action) &&
-                !"SELL".equals(result.action)) {
+        if (!"BUY".equals(
+                result.action
+        ) &&
+                !"SELL".equals(
+                        result.action
+                )) {
 
             return;
         }
@@ -1122,7 +1198,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult existing =
-                activeTrades.get(symbol);
+                activeTrades.get(
+                        symbol
+                );
 
         if (existing != null &&
                 existing.isOpen()) {
@@ -1182,7 +1260,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult trade =
-                activeTrades.get(symbol);
+                activeTrades.get(
+                        symbol
+                );
 
         if (trade == null) {
             return;
@@ -1209,7 +1289,9 @@ public class MainActivity extends AppCompatActivity {
                 trade
         );
 
-        if (!oldStatus.equals(trade.status)) {
+        if (!oldStatus.equals(
+                trade.status
+        )) {
 
             if (trade.isCompleted()) {
 
@@ -1225,7 +1307,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadActiveSignals() {
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
             candleData.put(
                     symbol,
@@ -1240,9 +1323,13 @@ public class MainActivity extends AppCompatActivity {
 
             activeTrades.clear();
 
-            activeTrades.putAll(saved);
+            activeTrades.putAll(
+                    saved
+            );
 
-            currentSignals.putAll(saved);
+            currentSignals.putAll(
+                    saved
+            );
         }
 
         updateHistoryDisplay();
@@ -1254,13 +1341,25 @@ public class MainActivity extends AppCompatActivity {
 
         String safeSymbol =
                 symbol
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         String safeTimeframe =
                 selectedTimeframe
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         return PREF_CHART_CACHE_PREFIX +
                 safeSymbol +
@@ -1274,13 +1373,25 @@ public class MainActivity extends AppCompatActivity {
 
         String safeSymbol =
                 symbol
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         String safeTimeframe =
                 selectedTimeframe
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         return PREF_CHART_CACHE_TIME_PREFIX +
                 safeSymbol +
@@ -1321,21 +1432,42 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject object =
                         new JSONObject();
 
-                object.put("open", c.open);
-                object.put("high", c.high);
-                object.put("low", c.low);
-                object.put("close", c.close);
+                object.put(
+                        "open",
+                        c.open
+                );
 
-                array.put(object);
+                object.put(
+                        "high",
+                        c.high
+                );
+
+                object.put(
+                        "low",
+                        c.low
+                );
+
+                object.put(
+                        "close",
+                        c.close
+                );
+
+                array.put(
+                        object
+                );
             }
 
             preferences.edit()
                     .putString(
-                            chartCacheKey(symbol),
+                            chartCacheKey(
+                                    symbol
+                            ),
                             array.toString()
                     )
                     .putLong(
-                            chartCacheTimeKey(symbol),
+                            chartCacheTimeKey(
+                                    symbol
+                            ),
                             System.currentTimeMillis()
                     )
                     .apply();
@@ -1346,10 +1478,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadCachedCandleData() {
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
             List<Candle> candles =
-                    loadCachedCandles(symbol);
+                    loadCachedCandles(
+                            symbol
+                    );
 
             candleData.put(
                     symbol,
@@ -1367,7 +1502,9 @@ public class MainActivity extends AppCompatActivity {
 
         String json =
                 preferences.getString(
-                        chartCacheKey(symbol),
+                        chartCacheKey(
+                                symbol
+                        ),
                         ""
                 );
 
@@ -1380,21 +1517,33 @@ public class MainActivity extends AppCompatActivity {
         try {
 
             JSONArray array =
-                    new JSONArray(json);
+                    new JSONArray(
+                            json
+                    );
 
             for (int i = 0;
                  i < array.length();
                  i++) {
 
                 JSONObject object =
-                        array.getJSONObject(i);
+                        array.getJSONObject(
+                                i
+                        );
 
                 result.add(
                         new Candle(
-                                object.getDouble("open"),
-                                object.getDouble("high"),
-                                object.getDouble("low"),
-                                object.getDouble("close")
+                                object.getDouble(
+                                        "open"
+                                ),
+                                object.getDouble(
+                                        "high"
+                                ),
+                                object.getDouble(
+                                        "low"
+                                ),
+                                object.getDouble(
+                                        "close"
+                                )
                         )
                 );
             }
@@ -1410,7 +1559,9 @@ public class MainActivity extends AppCompatActivity {
     ) {
 
         return preferences.getLong(
-                chartCacheTimeKey(symbol),
+                chartCacheTimeKey(
+                        symbol
+                ),
                 0L
         );
     }
@@ -1432,7 +1583,9 @@ public class MainActivity extends AppCompatActivity {
                     );
 
             return format.format(
-                    new Date(millis)
+                    new Date(
+                            millis
+                    )
             );
 
         } catch (Exception e) {
@@ -1450,12 +1603,24 @@ public class MainActivity extends AppCompatActivity {
         WebSettings settings =
                 chartWebView.getSettings();
 
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setLoadsImagesAutomatically(true);
+        settings.setJavaScriptEnabled(
+                true
+        );
+
+        settings.setDomStorageEnabled(
+                true
+        );
+
+        settings.setLoadsImagesAutomatically(
+                true
+        );
 
         chartWebView.setBackgroundColor(
-                Color.rgb(11, 15, 20)
+                Color.rgb(
+                        11,
+                        15,
+                        20
+                )
         );
 
         chartWebView.setWebViewClient(
@@ -1506,25 +1671,63 @@ public class MainActivity extends AppCompatActivity {
                 "height:100%;" +
                 "background:#0B0F14;" +
                 "overflow:hidden;" +
+                "font-family:Arial,sans-serif;" +
                 "}" +
 
-                "#chart{" +
+                "#root{" +
                 "position:absolute;" +
                 "left:0;" +
                 "top:0;" +
                 "right:0;" +
                 "bottom:0;" +
+                "display:flex;" +
+                "flex-direction:column;" +
+                "background:#0B0F14;" +
+                "}" +
+
+                "#mainChart{" +
+                "position:relative;" +
+                "width:100%;" +
+                "height:68%;" +
+                "min-height:180px;" +
+                "}" +
+
+                "#rsiPanel{" +
+                "position:relative;" +
+                "width:100%;" +
+                "height:16%;" +
+                "min-height:65px;" +
+                "border-top:1px solid #18202B;" +
+                "}" +
+
+                "#macdPanel{" +
+                "position:relative;" +
+                "width:100%;" +
+                "height:16%;" +
+                "min-height:65px;" +
+                "border-top:1px solid #18202B;" +
+                "}" +
+
+                ".panelTitle{" +
+                "position:absolute;" +
+                "top:4px;" +
+                "left:8px;" +
+                "z-index:10;" +
+                "font-size:10px;" +
+                "color:#AAB4C3;" +
+                "background:rgba(11,15,20,.78);" +
+                "padding:2px 5px;" +
+                "border-radius:3px;" +
                 "}" +
 
                 "#status{" +
                 "position:absolute;" +
                 "top:8px;" +
                 "left:10px;" +
-                "z-index:20;" +
-                "font-family:Arial;" +
+                "z-index:50;" +
                 "font-size:11px;" +
                 "color:#AAB4C3;" +
-                "background:rgba(11,15,20,.78);" +
+                "background:rgba(11,15,20,.86);" +
                 "padding:4px 7px;" +
                 "border-radius:4px;" +
                 "}" +
@@ -1535,7 +1738,7 @@ public class MainActivity extends AppCompatActivity {
                 "top:0;" +
                 "width:100%;" +
                 "height:100%;" +
-                "z-index:15;" +
+                "z-index:40;" +
                 "pointer-events:none;" +
                 "}" +
 
@@ -1550,36 +1753,73 @@ public class MainActivity extends AppCompatActivity {
 
                 "<body>" +
 
-                "<div id='chart'></div>" +
+                "<div id='root'>" +
 
-                "<div id='status'>" +
-                "Loading chart..." +
+                "<div id='mainChart'>" +
                 "</div>" +
+
+                "<div id='rsiPanel'>" +
+                "<div class='panelTitle'>RSI 14</div>" +
+                "</div>" +
+
+                "<div id='macdPanel'>" +
+                "<div class='panelTitle'>MACD</div>" +
+                "</div>" +
+
+                "</div>" +
+
+                "<div id='status'>Loading chart...</div>" +
 
                 "<div id='drawLayer'></div>" +
 
                 "<script>" +
 
                 "var chart=null;" +
+                "var rsiChart=null;" +
+                "var macdChart=null;" +
+
                 "var candleSeries=null;" +
+                "var rsiSeries=null;" +
+                "var rsi70=null;" +
+                "var rsi30=null;" +
+
+                "var macdLine=null;" +
+                "var macdSignalLine=null;" +
+                "var macdHistogram=null;" +
+
                 "var ema20=null;" +
                 "var ema50=null;" +
-                "var priceLines=[];" +
+                "var sma200=null;" +
+
+                "var upperBand=null;" +
+                "var middleBand=null;" +
+                "var lowerBand=null;" +
+
+                "var atrSeries=null;" +
+                "var stochasticSeries=null;" +
+
+                "var currentData=[];" +
+                "var signalLines=[];" +
+                "var drawingLines=[];" +
+
+                "var ema20Enabled=false;" +
+                "var ema50Enabled=false;" +
+                "var sma200Enabled=false;" +
+                "var bollingerEnabled=false;" +
+                "var rsiEnabled=false;" +
+                "var macdEnabled=false;" +
+                "var atrEnabled=false;" +
+                "var stochasticEnabled=false;" +
+
                 "var drawingMode=false;" +
 
                 "function setStatus(text){" +
                 "document.getElementById('status').innerText=text;" +
                 "}" +
 
-                "function initChart(){" +
+                "function makeOptions(container){" +
 
-                "if(typeof LightweightCharts==='undefined'){" +
-                "setStatus('CHART LIBRARY NOT AVAILABLE');" +
-                "return;" +
-                "}" +
-
-                "chart=LightweightCharts.createChart(" +
-                "document.getElementById('chart'),{" +
+                "return {" +
 
                 "layout:{" +
                 "background:{color:'#0B0F14'}," +
@@ -1592,7 +1832,8 @@ public class MainActivity extends AppCompatActivity {
                 "}," +
 
                 "rightPriceScale:{" +
-                "borderColor:'#26303C'" +
+                "borderColor:'#26303C'," +
+                "scaleMargins:{top:0.10,bottom:0.10}" +
                 "}," +
 
                 "timeScale:{" +
@@ -1603,110 +1844,153 @@ public class MainActivity extends AppCompatActivity {
 
                 "crosshair:{mode:1}" +
 
-                "});" +
+                "};" +
 
-                "if(chart.addSeries && " +
+                "}" +
+
+                "function createLineSeries(c,options){" +
+
+                "if(c.addSeries && LightweightCharts.LineSeries){" +
+
+                "return c.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "options);" +
+
+                "}" +
+
+                "if(c.addLineSeries){" +
+
+                "return c.addLineSeries(options);" +
+
+                "}" +
+
+                "return null;" +
+
+                "}" +
+
+                "function createHistogramSeries(c,options){" +
+
+                "if(c.addSeries && LightweightCharts.HistogramSeries){" +
+
+                "return c.addSeries(" +
+                "LightweightCharts.HistogramSeries," +
+                "options);" +
+
+                "}" +
+
+                "if(c.addHistogramSeries){" +
+
+                "return c.addHistogramSeries(options);" +
+
+                "}" +
+
+                "return null;" +
+
+                "}" +
+
+                "function createCandleSeries(c){" +
+
+                "var options={" +
+
+                "upColor:'#16C784'," +
+                "downColor:'#EA3943'," +
+                "borderUpColor:'#16C784'," +
+                "borderDownColor:'#EA3943'," +
+                "wickUpColor:'#16C784'," +
+                "wickDownColor:'#EA3943'" +
+
+                "};" +
+
+                "if(c.addSeries && " +
                 "LightweightCharts.CandlestickSeries){" +
 
-                "candleSeries=chart.addSeries(" +
-                "LightweightCharts.CandlestickSeries,{" +
+                "return c.addSeries(" +
+                "LightweightCharts.CandlestickSeries," +
+                "options);" +
 
-                "upColor:'#16C784'," +
-                "downColor:'#EA3943'," +
-                "borderUpColor:'#16C784'," +
-                "borderDownColor:'#EA3943'," +
-                "wickUpColor:'#16C784'," +
-                "wickDownColor:'#EA3943'" +
+                "}" +
 
-                "});" +
+                "if(c.addCandlestickSeries){" +
+                "return c.addCandlestickSeries(options);" +
+                "}" +
 
-                "}else if(chart.addCandlestickSeries){" +
+                "return null;" +
+                "}" +
+
+                "function initChart(){" +
+
+                "if(typeof LightweightCharts==='undefined'){" +
+
+                "setStatus(" +
+                "'CHART LIBRARY NOT AVAILABLE'" +
+                ");" +
+
+                "return;" +
+
+                "}" +
+
+                "chart=" +
+                "LightweightCharts.createChart(" +
+                "document.getElementById('mainChart')," +
+                "makeOptions('mainChart')" +
+                ");" +
 
                 "candleSeries=" +
-                "chart.addCandlestickSeries({" +
+                "createCandleSeries(chart);" +
 
-                "upColor:'#16C784'," +
-                "downColor:'#EA3943'," +
-                "borderUpColor:'#16C784'," +
-                "borderDownColor:'#EA3943'," +
-                "wickUpColor:'#16C784'," +
-                "wickDownColor:'#EA3943'" +
+                "rsiChart=" +
+                "LightweightCharts.createChart(" +
+                "document.getElementById('rsiPanel')," +
+                "makeOptions('rsiPanel')" +
+                ");" +
 
+                "macdChart=" +
+                "LightweightCharts.createChart(" +
+                "document.getElementById('macdPanel')," +
+                "makeOptions('macdPanel')" +
+                ");" +
+
+                "if(rsiChart){" +
+
+                "rsiSeries=" +
+                "createLineSeries(rsiChart,{" +
+                "color:'#AB47BC'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:true" +
                 "});" +
 
-                "}else{" +
-
-                "setStatus('CANDLE CHART NOT SUPPORTED');" +
-                "return;" +
-
                 "}" +
 
-                "setStatus('Chart ready');" +
+                "if(macdChart){" +
 
-                "}" +
-
-                "function clearPriceLines(){" +
-
-                "if(!candleSeries) return;" +
-
-                "for(var i=0;i<priceLines.length;i++){" +
-
-                "try{" +
-                "candleSeries.removePriceLine(" +
-                "priceLines[i]);" +
-                "}catch(e){}" +
-
-                "}" +
-
-                "priceLines=[];" +
-
-                "}" +
-
-                "function addPriceLine(price,title,color){" +
-
-                "if(!candleSeries || price<=0) return;" +
-
-                "var line=candleSeries.createPriceLine({" +
-
-                "price:price," +
-                "color:color," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:title" +
-
+                "macdLine=" +
+                "createLineSeries(macdChart,{" +
+                "color:'#42A5F5'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:true" +
                 "});" +
 
-                "priceLines.push(line);" +
+                "macdSignalLine=" +
+                "createLineSeries(macdChart,{" +
+                "color:'#FFCA28'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:true" +
+                "});" +
+
+                "macdHistogram=" +
+                "createHistogramSeries(macdChart,{" +
+                "priceFormat:{type:'price',precision:5," +
+                "minMove:0.00001}," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
+                "});" +
 
                 "}" +
 
-                "function setChartData(" +
-                "data,symbol,entry,sl,tp1,tp2,tp3,statusText){" +
-
-                "if(!candleSeries){" +
-                "setStatus('Chart is loading...');" +
-                "return;" +
-                "}" +
-
-                "if(!data || data.length===0){" +
-                "setStatus('NO CACHED MARKET DATA');" +
-                "return;" +
-                "}" +
-
-                "candleSeries.setData(data);" +
-
-                "clearPriceLines();" +
-
-                "addPriceLine(entry,'ENTRY','#FFFFFF');" +
-                "addPriceLine(sl,'SL','#EA3943');" +
-                "addPriceLine(tp1,'TP1','#16C784');" +
-                "addPriceLine(tp2,'TP2','#16C784');" +
-                "addPriceLine(tp3,'TP3','#16C784');" +
-
-                "chart.timeScale().fitContent();" +
-
-                "setStatus(statusText+' • '+symbol);" +
+                "setStatus('Professional chart ready');" +
 
                 "}" +
 
@@ -1714,7 +1998,9 @@ public class MainActivity extends AppCompatActivity {
 
                 "var result=[];" +
 
-                "if(!data || data.length<period) return result;" +
+                "if(!data || data.length<period){" +
+                "return result;" +
+                "}" +
 
                 "var multiplier=2/(period+1);" +
                 "var sum=0;" +
@@ -1735,7 +2021,8 @@ public class MainActivity extends AppCompatActivity {
                 "var close=Number(data[j].close);" +
 
                 "var current=" +
-                "((close-previous)*multiplier)+previous;" +
+                "((close-previous)*multiplier)+" +
+                "previous;" +
 
                 "result.push({" +
                 "time:data[j].time," +
@@ -1747,105 +2034,479 @@ public class MainActivity extends AppCompatActivity {
                 "}" +
 
                 "return result;" +
+                "}" +
+
+                "function calculateSMA(data,period){" +
+
+                "var result=[];" +
+
+                "if(!data || data.length<period){" +
+                "return result;" +
+                "}" +
+
+                "for(var i=period-1;" +
+                "i<data.length;i++){" +
+
+                "var sum=0;" +
+
+                "for(var j=i-period+1;" +
+                "j<=i;j++){" +
+
+                "sum+=Number(data[j].close);" +
+                "}" +
+
+                "result.push({" +
+                "time:data[i].time," +
+                "value:sum/period" +
+                "});" +
 
                 "}" +
 
-                "function getCurrentData(){" +
+                "return result;" +
+                "}" +
 
-                "if(!candleSeries) return [];" +
+                "function calculateRSI(data,period){" +
+
+                "var result=[];" +
+
+                "if(!data || data.length<=period){" +
+                "return result;" +
+                "}" +
+
+                "var gains=0;" +
+                "var losses=0;" +
+
+                "for(var i=1;i<=period;i++){" +
+
+                "var change=" +
+                "Number(data[i].close)-" +
+                "Number(data[i-1].close);" +
+
+                "if(change>0){" +
+                "gains+=change;" +
+                "}else{" +
+                "losses+=Math.abs(change);" +
+                "}" +
+
+                "}" +
+
+                "var avgGain=gains/period;" +
+                "var avgLoss=losses/period;" +
+
+                "var firstRSI;" +
+
+                "if(avgLoss===0){" +
+                "firstRSI=100;" +
+                "}else{" +
+                "var rs=avgGain/avgLoss;" +
+                "firstRSI=100-(100/(1+rs));" +
+                "}" +
+
+                "result.push({" +
+                "time:data[period].time," +
+                "value:firstRSI" +
+                "});" +
+
+                "for(var k=period+1;" +
+                "k<data.length;k++){" +
+
+                "var diff=" +
+                "Number(data[k].close)-" +
+                "Number(data[k-1].close);" +
+
+                "var gain=diff>0?diff:0;" +
+                "var loss=diff<0?Math.abs(diff):0;" +
+
+                "avgGain=" +
+                "((avgGain*(period-1))+gain)/period;" +
+
+                "avgLoss=" +
+                "((avgLoss*(period-1))+loss)/period;" +
+
+                "var value;" +
+
+                "if(avgLoss===0){" +
+                "value=100;" +
+                "}else{" +
+
+                "var rs2=avgGain/avgLoss;" +
+                "value=100-(100/(1+rs2));" +
+
+                "}" +
+
+                "result.push({" +
+                "time:data[k].time," +
+                "value:value" +
+                "});" +
+
+                "}" +
+
+                "return result;" +
+                "}" +
+
+                "function calculateBollinger(data,period,mult){" +
+
+                "var upper=[];" +
+                "var middle=[];" +
+                "var lower=[];" +
+
+                "if(!data || data.length<period){" +
+
+                "return {" +
+                "upper:upper," +
+                "middle:middle," +
+                "lower:lower" +
+                "};" +
+
+                "}" +
+
+                "for(var i=period-1;" +
+                "i<data.length;i++){" +
+
+                "var sum=0;" +
+
+                "for(var j=i-period+1;" +
+                "j<=i;j++){" +
+                "sum+=Number(data[j].close);" +
+                "}" +
+
+                "var mean=sum/period;" +
+                "var variance=0;" +
+
+                "for(var k=i-period+1;" +
+                "k<=i;k++){" +
+
+                "var diff=" +
+                "Number(data[k].close)-mean;" +
+
+                "variance+=diff*diff;" +
+
+                "}" +
+
+                "var sd=Math.sqrt(variance/period);" +
+
+                "upper.push({" +
+                "time:data[i].time," +
+                "value:mean+(mult*sd)" +
+                "});" +
+
+                "middle.push({" +
+                "time:data[i].time," +
+                "value:mean" +
+                "});" +
+
+                "lower.push({" +
+                "time:data[i].time," +
+                "value:mean-(mult*sd)" +
+                "});" +
+
+                "}" +
+
+                "return {" +
+                "upper:upper," +
+                "middle:middle," +
+                "lower:lower" +
+                "};" +
+
+                "}" +
+
+                "function calculateATR(data,period){" +
+
+                "var result=[];" +
+
+                "if(!data || data.length<=period){" +
+                "return result;" +
+                "}" +
+
+                "var trs=[];" +
+
+                "for(var i=1;i<data.length;i++){" +
+
+                "var high=Number(data[i].high);" +
+                "var low=Number(data[i].low);" +
+                "var prevClose=" +
+                "Number(data[i-1].close);" +
+
+                "var tr=Math.max(" +
+                "high-low," +
+                "Math.abs(high-prevClose)," +
+                "Math.abs(low-prevClose)" +
+                ");" +
+
+                "trs.push(tr);" +
+
+                "}" +
+
+                "if(trs.length<period){" +
+                "return result;" +
+                "}" +
+
+                "var sum=0;" +
+
+                "for(var j=0;j<period;j++){" +
+                "sum+=trs[j];" +
+                "}" +
+
+                "var atr=sum/period;" +
+
+                "result.push({" +
+                "time:data[period].time," +
+                "value:atr" +
+                "});" +
+
+                "for(var k=period;k<trs.length;k++){" +
+
+                "atr=" +
+                "((atr*(period-1))+trs[k])/period;" +
+
+                "result.push({" +
+                "time:data[k+1].time," +
+                "value:atr" +
+                "});" +
+
+                "}" +
+
+                "return result;" +
+                "}" +
+
+                "function calculateStochastic(data,period){" +
+
+                "var result=[];" +
+
+                "if(!data || data.length<period){" +
+                "return result;" +
+                "}" +
+
+                "for(var i=period-1;" +
+                "i<data.length;i++){" +
+
+                "var highest=-Infinity;" +
+                "var lowest=Infinity;" +
+
+                "for(var j=i-period+1;" +
+                "j<=i;j++){" +
+
+                "highest=Math.max(" +
+                "highest," +
+                "Number(data[j].high)" +
+                ");" +
+
+                "lowest=Math.min(" +
+                "lowest," +
+                "Number(data[j].low)" +
+                ");" +
+
+                "}" +
+
+                "var close=" +
+                "Number(data[i].close);" +
+
+                "var value;" +
+
+                "if(highest===lowest){" +
+                "value=50;" +
+                "}else{" +
+
+                "value=" +
+                "((close-lowest)/" +
+                "(highest-lowest))*100;" +
+
+                "}" +
+
+                "result.push({" +
+                "time:data[i].time," +
+                "value:value" +
+                "});" +
+
+                "}" +
+
+                "return result;" +
+                "}" +
+
+                "function calculateMACD(data){" +
+
+                "var resultLine=[];" +
+                "var resultSignal=[];" +
+                "var resultHistogram=[];" +
+
+                "if(!data || data.length<35){" +
+                "return {" +
+                "line:resultLine," +
+                "signal:resultSignal," +
+                "histogram:resultHistogram" +
+                "};" +
+                "}" +
+
+                "var ema12=calculateEMA(data,12);" +
+                "var ema26=calculateEMA(data,26);" +
+
+                "var macdValues=[];" +
+
+                "var map12={};" +
+                "for(var a=0;a<ema12.length;a++){" +
+                "map12[ema12[a].time]=ema12[a].value;" +
+                "}" +
+
+                "for(var b=0;b<ema26.length;b++){" +
+
+                "var t=ema26[b].time;" +
+
+                "if(map12[t]!==undefined){" +
+
+                "macdValues.push({" +
+                "time:t," +
+                "value:map12[t]-ema26[b].value" +
+                "});" +
+
+                "}" +
+
+                "}" +
+
+                "if(macdValues.length<9){" +
+                "return {" +
+                "line:macdValues," +
+                "signal:resultSignal," +
+                "histogram:resultHistogram" +
+                "};" +
+                "}" +
+
+                "resultLine=macdValues;" +
+
+                "var multiplier=2/(9+1);" +
+                "var sum=0;" +
+
+                "for(var c=0;c<9;c++){" +
+                "sum+=macdValues[c].value;" +
+                "}" +
+
+                "var previous=sum/9;" +
+
+                "resultSignal.push({" +
+                "time:macdValues[8].time," +
+                "value:previous" +
+                "});" +
+
+                "for(var d=9;" +
+                "d<macdValues.length;d++){" +
+
+                "var current=" +
+                "((macdValues[d].value-previous)" +
+                "*multiplier)+previous;" +
+
+                "previous=current;" +
+
+                "resultSignal.push({" +
+                "time:macdValues[d].time," +
+                "value:current" +
+                "});" +
+
+                "}" +
+
+                "var signalMap={};" +
+
+                "for(var e=0;" +
+                "e<resultSignal.length;e++){" +
+
+                "signalMap[resultSignal[e].time]=" +
+                "resultSignal[e].value;" +
+
+                "}" +
+
+                "for(var f=0;" +
+                "f<resultLine.length;f++){" +
+
+                "var lineValue=" +
+                "resultLine[f].value;" +
+
+                "var signalValue=" +
+                "signalMap[resultLine[f].time];" +
+
+                "if(signalValue!==undefined){" +
+
+                "resultHistogram.push({" +
+                "time:resultLine[f].time," +
+                "value:lineValue-signalValue" +
+                "});" +
+
+                "}" +
+
+                "}" +
+
+                "return {" +
+                "line:resultLine," +
+                "signal:resultSignal," +
+                "histogram:resultHistogram" +
+                "};" +
+
+                "}" +
+
+                "function removeSeriesSafe(c,s){" +
+
+                "if(!c || !s) return;" +
 
                 "try{" +
-                "return candleSeries.data();" +
-                "}catch(e){" +
-                "return [];" +
-                "}" +
-
-                "}" +
-
-                "function showEMA20(){" +
-
-                "if(ema20){" +
-
-                "try{" +
-                "chart.removeSeries(ema20);" +
+                "c.removeSeries(s);" +
                 "}catch(e){}" +
+
+                "}" +
+
+                "function clearOverlayIndicators(){" +
+
+                "removeSeriesSafe(chart,ema20);" +
+                "removeSeriesSafe(chart,ema50);" +
+                "removeSeriesSafe(chart,sma200);" +
+                "removeSeriesSafe(chart,upperBand);" +
+                "removeSeriesSafe(chart,middleBand);" +
+                "removeSeriesSafe(chart,lowerBand);" +
 
                 "ema20=null;" +
-
-                "setStatus('EMA 20 OFF');" +
-
-                "return;" +
-
-                "}" +
-
-                "var data=getCurrentData();" +
-                "var values=calculateEMA(data,20);" +
-
-                "if(!values.length){" +
-                "setStatus('Not enough candles for EMA 20');" +
-                "return;" +
-                "}" +
-
-                "if(chart.addSeries && " +
-                "LightweightCharts.LineSeries){" +
-
-                "ema20=chart.addSeries(" +
-                "LightweightCharts.LineSeries,{" +
-                "color:'#FFD54F'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'EMA 20'" +
-                "});" +
-
-                "}else if(chart.addLineSeries){" +
-
-                "ema20=chart.addLineSeries({" +
-                "color:'#FFD54F'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'EMA 20'" +
-                "});" +
-
-                "}" +
-
-                "if(ema20){" +
-                "ema20.setData(values);" +
-                "setStatus('EMA 20 ON');" +
-                "}" +
-
-                "}" +
-
-                "function showEMA50(){" +
-
-                "if(ema50){" +
-
-                "try{" +
-                "chart.removeSeries(ema50);" +
-                "}catch(e){}" +
-
                 "ema50=null;" +
-
-                "setStatus('EMA 50 OFF');" +
-
-                "return;" +
+                "sma200=null;" +
+                "upperBand=null;" +
+                "middleBand=null;" +
+                "lowerBand=null;" +
 
                 "}" +
 
-                "var data=getCurrentData();" +
-                "var values=calculateEMA(data,50);" +
+                "function redrawIndicators(){" +
 
-                "if(!values.length){" +
-                "setStatus('Not enough candles for EMA 50');" +
+                "if(!chart || !currentData.length){" +
                 "return;" +
                 "}" +
 
-                "if(chart.addSeries && " +
-                "LightweightCharts.LineSeries){" +
+                "clearOverlayIndicators();" +
 
-                "ema50=chart.addSeries(" +
-                "LightweightCharts.LineSeries,{" +
+                "if(ema20Enabled){" +
+
+                "var e20=" +
+                "calculateEMA(currentData,20);" +
+
+                "if(e20.length){" +
+
+                "ema20=" +
+                "createLineSeries(chart,{" +
+                "color:'#FFD54F'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:true," +
+                "title:'EMA 20'" +
+                "});" +
+
+                "if(ema20) ema20.setData(e20);" +
+
+                "}" +
+
+                "}" +
+
+                "if(ema50Enabled){" +
+
+                "var e50=" +
+                "calculateEMA(currentData,50);" +
+
+                "if(e50.length){" +
+
+                "ema50=" +
+                "createLineSeries(chart,{" +
                 "color:'#42A5F5'," +
                 "lineWidth:2," +
                 "priceLineVisible:false," +
@@ -1853,38 +2514,329 @@ public class MainActivity extends AppCompatActivity {
                 "title:'EMA 50'" +
                 "});" +
 
-                "}else if(chart.addLineSeries){" +
+                "if(ema50) ema50.setData(e50);" +
 
-                "ema50=chart.addLineSeries({" +
-                "color:'#42A5F5'," +
+                "}" +
+
+                "}" +
+
+                "if(sma200Enabled){" +
+
+                "var s200=" +
+                "calculateSMA(currentData,200);" +
+
+                "if(s200.length){" +
+
+                "sma200=" +
+                "createLineSeries(chart,{" +
+                "color:'#FFFFFF'," +
                 "lineWidth:2," +
                 "priceLineVisible:false," +
                 "lastValueVisible:true," +
-                "title:'EMA 50'" +
+                "title:'SMA 200'" +
                 "});" +
 
+                "if(sma200) sma200.setData(s200);" +
+
                 "}" +
 
-                "if(ema50){" +
-                "ema50.setData(values);" +
-                "setStatus('EMA 50 ON');" +
                 "}" +
+
+                "if(bollingerEnabled){" +
+
+                "var bb=" +
+                "calculateBollinger(" +
+                "currentData,20,2" +
+                ");" +
+
+                "if(bb.middle.length){" +
+
+                "middleBand=" +
+                "createLineSeries(chart,{" +
+                "color:'#B0BEC5'," +
+                "lineWidth:1," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false," +
+                "title:'BB Middle'" +
+                "});" +
+
+                "upperBand=" +
+                "createLineSeries(chart,{" +
+                "color:'#90CAF9'," +
+                "lineWidth:1," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false," +
+                "title:'BB Upper'" +
+                "});" +
+
+                "lowerBand=" +
+                "createLineSeries(chart,{" +
+                "color:'#90CAF9'," +
+                "lineWidth:1," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false," +
+                "title:'BB Lower'" +
+                "});" +
+
+                "if(middleBand) middleBand.setData(bb.middle);" +
+                "if(upperBand) upperBand.setData(bb.upper);" +
+                "if(lowerBand) lowerBand.setData(bb.lower);" +
+
+                "}" +
+
+                "}" +
+
+                "redrawLowerIndicators();" +
+
+                "}" +
+
+                "function redrawLowerIndicators(){" +
+
+                "if(!currentData.length) return;" +
+
+                "var rsiData=" +
+                "calculateRSI(currentData,14);" +
+
+                "var macdData=" +
+                "calculateMACD(currentData);" +
+
+                "var atrData=" +
+                "calculateATR(currentData,14);" +
+
+                "var stochData=" +
+                "calculateStochastic(currentData,14);" +
+
+                "if(rsiSeries){" +
+
+                "if(rsiEnabled && rsiData.length){" +
+
+                "rsiSeries.setData(rsiData);" +
+                "}else{" +
+                "rsiSeries.setData([]);" +
+                "}" +
+
+                "}" +
+
+                "if(macdLine){" +
+
+                "if(macdEnabled){" +
+
+                "macdLine.setData(macdData.line);" +
+                "macdSignalLine.setData(macdData.signal);" +
+                "macdHistogram.setData(macdData.histogram);" +
+
+                "}else{" +
+
+                "macdLine.setData([]);" +
+                "macdSignalLine.setData([]);" +
+                "macdHistogram.setData([]);" +
+
+                "}" +
+
+                "}" +
+
+                "if(atrEnabled && atrData.length){" +
+
+                "setStatus('ATR 14 active • chart scale');" +
+
+                "} " +
+
+                "if(stochasticEnabled && stochData.length){" +
+
+                "setStatus('Stochastic 14 active • chart scale');" +
+
+                "}" +
+
+                "}" +
+
+                "function setIndicator(name,enabled){" +
+
+                "if(name==='EMA20'){" +
+                "ema20Enabled=enabled;" +
+                "}" +
+
+                "if(name==='EMA50'){" +
+                "ema50Enabled=enabled;" +
+                "}" +
+
+                "if(name==='SMA200'){" +
+                "sma200Enabled=enabled;" +
+                "}" +
+
+                "if(name==='BOLLINGER'){" +
+                "bollingerEnabled=enabled;" +
+                "}" +
+
+                "if(name==='RSI'){" +
+                "rsiEnabled=enabled;" +
+                "}" +
+
+                "if(name==='MACD'){" +
+                "macdEnabled=enabled;" +
+                "}" +
+
+                "if(name==='ATR'){" +
+                "atrEnabled=enabled;" +
+                "}" +
+
+                "if(name==='STOCHASTIC'){" +
+                "stochasticEnabled=enabled;" +
+                "}" +
+
+                "redrawIndicators();" +
+
+                "setStatus(" +
+                "name+' '+(enabled?'ON':'OFF')" +
+                ");" +
 
                 "}" +
 
                 "function clearIndicators(){" +
 
-                "if(ema20){" +
-                "try{chart.removeSeries(ema20);}catch(e){}" +
-                "ema20=null;" +
+                "ema20Enabled=false;" +
+                "ema50Enabled=false;" +
+                "sma200Enabled=false;" +
+                "bollingerEnabled=false;" +
+                "rsiEnabled=false;" +
+                "macdEnabled=false;" +
+                "atrEnabled=false;" +
+                "stochasticEnabled=false;" +
+
+                "clearOverlayIndicators();" +
+
+                "if(rsiSeries){" +
+                "rsiSeries.setData([]);" +
                 "}" +
 
-                "if(ema50){" +
-                "try{chart.removeSeries(ema50);}catch(e){}" +
-                "ema50=null;" +
+                "if(macdLine){" +
+                "macdLine.setData([]);" +
+                "macdSignalLine.setData([]);" +
+                "macdHistogram.setData([]);" +
                 "}" +
 
                 "setStatus('Indicators cleared');" +
+
+                "}" +
+
+                "function clearSignalLines(){" +
+
+                "if(!candleSeries) return;" +
+
+                "for(var i=0;" +
+                "i<signalLines.length;i++){" +
+
+                "try{" +
+                "candleSeries.removePriceLine(" +
+                "signalLines[i]" +
+                ");" +
+                "}catch(e){}" +
+
+                "}" +
+
+                "signalLines=[];" +
+                "}" +
+
+                "function clearDrawingsOnly(){" +
+
+                "if(!candleSeries) return;" +
+
+                "for(var i=0;" +
+                "i<drawingLines.length;i++){" +
+
+                "try{" +
+                "candleSeries.removePriceLine(" +
+                "drawingLines[i]" +
+                ");" +
+                "}catch(e){}" +
+
+                "}" +
+
+                "drawingLines=[];" +
+                "}" +
+
+                "function addSignalLine(price,title,color){" +
+
+                "if(!candleSeries || price<=0) return;" +
+
+                "var line=" +
+                "candleSeries.createPriceLine({" +
+
+                "price:price," +
+                "color:color," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:title" +
+
+                "});" +
+
+                "signalLines.push(line);" +
+
+                "}" +
+
+                "function addDrawingLine(price,title){" +
+
+                "if(!candleSeries || price<=0) return;" +
+
+                "var line=" +
+                "candleSeries.createPriceLine({" +
+
+                "price:price," +
+                "color:'#FFFFFF'," +
+                "lineWidth:1," +
+                "lineStyle:0," +
+                "axisLabelVisible:true," +
+                "title:title" +
+
+                "});" +
+
+                "drawingLines.push(line);" +
+
+                "}" +
+
+                "function setChartData(" +
+                "data,symbol,entry,sl,tp1,tp2,tp3,statusText){" +
+
+                "if(!candleSeries){" +
+
+                "setStatus('Chart is loading...');" +
+                "return;" +
+                "}" +
+
+                "if(!data || data.length===0){" +
+
+                "setStatus('NO CACHED MARKET DATA');" +
+                "return;" +
+
+                "}" +
+
+                "currentData=data;" +
+
+                "candleSeries.setData(data);" +
+
+                "clearSignalLines();" +
+
+                "addSignalLine(entry,'ENTRY','#FFFFFF');" +
+                "addSignalLine(sl,'SL','#EA3943');" +
+                "addSignalLine(tp1,'TP1','#16C784');" +
+                "addSignalLine(tp2,'TP2','#16C784');" +
+                "addSignalLine(tp3,'TP3','#16C784');" +
+
+                "redrawIndicators();" +
+
+                "chart.timeScale().fitContent();" +
+
+                "if(rsiChart){" +
+                "rsiChart.timeScale().fitContent();" +
+                "}" +
+
+                "if(macdChart){" +
+                "macdChart.timeScale().fitContent();" +
+                "}" +
+
+                "setStatus(" +
+                "statusText+' • '+symbol" +
+                ");" +
 
                 "}" +
 
@@ -1892,19 +2844,30 @@ public class MainActivity extends AppCompatActivity {
 
                 "if(chart){" +
                 "chart.timeScale().fitContent();" +
-                "setStatus('Chart fitted');" +
                 "}" +
+
+                "if(rsiChart){" +
+                "rsiChart.timeScale().fitContent();" +
+                "}" +
+
+                "if(macdChart){" +
+                "macdChart.timeScale().fitContent();" +
+                "}" +
+
+                "setStatus('Chart fitted');" +
 
                 "}" +
 
                 "function enableHorizontalDrawing(){" +
 
-                "if(!candleSeries || !chart) return;" +
+                "if(!candleSeries) return;" +
 
                 "drawingMode=true;" +
 
                 "var layer=" +
-                "document.getElementById('drawLayer');" +
+                "document.getElementById(" +
+                "'drawLayer'" +
+                ");" +
 
                 "layer.style.pointerEvents='auto';" +
                 "layer.style.cursor='crosshair';" +
@@ -1920,7 +2883,9 @@ public class MainActivity extends AppCompatActivity {
                 "drawingMode=false;" +
 
                 "var layer=" +
-                "document.getElementById('drawLayer');" +
+                "document.getElementById(" +
+                "'drawLayer'" +
+                ");" +
 
                 "layer.style.pointerEvents='none';" +
                 "layer.style.cursor='default';" +
@@ -1931,7 +2896,7 @@ public class MainActivity extends AppCompatActivity {
 
                 "function clearDrawings(){" +
 
-                "clearPriceLines();" +
+                "clearDrawingsOnly();" +
 
                 "setStatus('Drawings cleared');" +
 
@@ -1941,17 +2906,27 @@ public class MainActivity extends AppCompatActivity {
                 "'DOMContentLoaded',function(){" +
 
                 "var layer=" +
-                "document.getElementById('drawLayer');" +
+                "document.getElementById(" +
+                "'drawLayer'" +
+                ");" +
 
                 "layer.addEventListener(" +
                 "'click',function(event){" +
 
-                "if(!drawingMode || !candleSeries) return;" +
+                "if(!drawingMode || !candleSeries){" +
+                "return;" +
+                "}" +
+
+                "var chartElement=" +
+                "document.getElementById(" +
+                "'mainChart'" +
+                ");" +
 
                 "var rect=" +
-                "layer.getBoundingClientRect();" +
+                "chartElement.getBoundingClientRect();" +
 
-                "var y=event.clientY-rect.top;" +
+                "var y=" +
+                "event.clientY-rect.top;" +
 
                 "try{" +
 
@@ -1960,8 +2935,10 @@ public class MainActivity extends AppCompatActivity {
 
                 "if(price!==null && price>0){" +
 
-                "addPriceLine(" +
-                "price,'LEVEL','#FFFFFF');" +
+                "addDrawingLine(" +
+                "price," +
+                "'LEVEL'" +
+                ");" +
 
                 "setStatus(" +
                 "'LEVEL '+price.toFixed(5)" +
@@ -1973,11 +2950,55 @@ public class MainActivity extends AppCompatActivity {
 
                 "}catch(e){" +
 
-                "setStatus('Unable to draw level');" +
+                "setStatus(" +
+                "'Unable to draw level'" +
+                ");" +
 
                 "}" +
 
                 "});" +
+
+                "});" +
+
+                "window.addEventListener(" +
+                "'resize',function(){" +
+
+                "try{" +
+
+                "if(chart){" +
+                "chart.applyOptions({" +
+                "width:document.getElementById(" +
+                "'mainChart'" +
+                ").clientWidth," +
+                "height:document.getElementById(" +
+                "'mainChart'" +
+                ").clientHeight" +
+                "});" +
+                "}" +
+
+                "if(rsiChart){" +
+                "rsiChart.applyOptions({" +
+                "width:document.getElementById(" +
+                "'rsiPanel'" +
+                ").clientWidth," +
+                "height:document.getElementById(" +
+                "'rsiPanel'" +
+                ").clientHeight" +
+                "});" +
+                "}" +
+
+                "if(macdChart){" +
+                "macdChart.applyOptions({" +
+                "width:document.getElementById(" +
+                "'macdPanel'" +
+                ").clientWidth," +
+                "height:document.getElementById(" +
+                "'macdPanel'" +
+                ").clientHeight" +
+                "});" +
+                "}" +
+
+                "}catch(e){}" +
 
                 "});" +
 
@@ -2002,19 +3023,24 @@ public class MainActivity extends AppCompatActivity {
         if (chartSymbol == null ||
                 chartSymbol.trim().isEmpty()) {
 
-            chartSymbol = "XAU/USD";
+            chartSymbol =
+                    "XAU/USD";
         }
 
         updateChartToolbarText();
 
         List<Candle> candles =
-                candleData.get(chartSymbol);
+                candleData.get(
+                        chartSymbol
+                );
 
         if (candles == null ||
                 candles.isEmpty()) {
 
             chartWebView.evaluateJavascript(
-                    "setStatus('NO CACHED MARKET DATA');",
+                    "setStatus(" +
+                            "'NO CACHED MARKET DATA'" +
+                            ");",
                     null
             );
 
@@ -2037,8 +3063,12 @@ public class MainActivity extends AppCompatActivity {
 
             long firstTime =
                     nowSeconds -
-                            ((long) candles.size()
-                                    * intervalSeconds);
+                            (
+                                    (long)
+                                            candles.size()
+                                            *
+                                            intervalSeconds
+                            );
 
             for (int i = 0;
                  i < candles.size();
@@ -2053,20 +3083,41 @@ public class MainActivity extends AppCompatActivity {
                 item.put(
                         "time",
                         firstTime +
-                                ((long) i *
-                                        intervalSeconds)
+                                (
+                                        (long) i *
+                                                intervalSeconds
+                                )
                 );
 
-                item.put("open", candle.open);
-                item.put("high", candle.high);
-                item.put("low", candle.low);
-                item.put("close", candle.close);
+                item.put(
+                        "open",
+                        candle.open
+                );
 
-                array.put(item);
+                item.put(
+                        "high",
+                        candle.high
+                );
+
+                item.put(
+                        "low",
+                        candle.low
+                );
+
+                item.put(
+                        "close",
+                        candle.close
+                );
+
+                array.put(
+                        item
+                );
             }
 
             SignalResult result =
-                    currentSignals.get(chartSymbol);
+                    currentSignals.get(
+                            chartSymbol
+                    );
 
             double entry = 0;
             double sl = 0;
@@ -2075,14 +3126,29 @@ public class MainActivity extends AppCompatActivity {
             double tp3 = 0;
 
             if (result != null &&
-                    ("BUY".equals(result.action) ||
-                     "SELL".equals(result.action))) {
+                    (
+                            "BUY".equals(
+                                    result.action
+                            ) ||
+                            "SELL".equals(
+                                    result.action
+                            )
+                    )) {
 
-                entry = result.entry;
-                sl = result.sl;
-                tp1 = result.tp1;
-                tp2 = result.tp2;
-                tp3 = result.tp3;
+                entry =
+                        result.entry;
+
+                sl =
+                        result.sl;
+
+                tp1 =
+                        result.tp1;
+
+                tp2 =
+                        result.tp2;
+
+                tp3 =
+                        result.tp3;
             }
 
             long cachedAt =
@@ -2100,7 +3166,9 @@ public class MainActivity extends AppCompatActivity {
             } else {
 
                 String cachedTime =
-                        formatCachedTime(cachedAt);
+                        formatCachedTime(
+                                cachedAt
+                        );
 
                 if (cachedTime.isEmpty()) {
 
@@ -2165,7 +3233,9 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
 
             chartWebView.evaluateJavascript(
-                    "setStatus('CHART DATA ERROR');",
+                    "setStatus(" +
+                            "'CHART DATA ERROR'" +
+                            ");",
                     null
             );
         }
@@ -2213,15 +3283,21 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
-            if (liveClients.containsKey(symbol)) {
+            if (liveClients.containsKey(
+                    symbol
+            )) {
+
                 continue;
             }
 
             TwelveDataClient client =
                     new TwelveDataClient(
-                            new PairCallback(symbol)
+                            new PairCallback(
+                                    symbol
+                            )
                     );
 
             liveClients.put(
@@ -2242,7 +3318,9 @@ public class MainActivity extends AppCompatActivity {
                 liveClients.values()) {
 
             try {
+
                 client.close();
+
             } catch (Exception ignored) {
             }
         }
@@ -2255,10 +3333,13 @@ public class MainActivity extends AppCompatActivity {
         SignalResult best = null;
         String bestSymbol = null;
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
             SignalResult result =
-                    currentSignals.get(symbol);
+                    currentSignals.get(
+                            symbol
+                    );
 
             if (result == null) {
                 continue;
@@ -2268,8 +3349,11 @@ public class MainActivity extends AppCompatActivity {
                     result.confidence >
                             best.confidence) {
 
-                best = result;
-                bestSymbol = symbol;
+                best =
+                        result;
+
+                bestSymbol =
+                        symbol;
             }
         }
 
@@ -2277,7 +3361,9 @@ public class MainActivity extends AppCompatActivity {
 
             if (bestSignal != null) {
 
-                bestSignal.setText("WAIT");
+                bestSignal.setText(
+                        "WAIT"
+                );
 
                 bestSignal.setTextColor(
                         Color.LTGRAY
@@ -2300,13 +3386,17 @@ public class MainActivity extends AppCompatActivity {
                     best.action
             );
 
-            if ("BUY".equals(best.action)) {
+            if ("BUY".equals(
+                    best.action
+            )) {
 
                 bestSignal.setTextColor(
                         Color.GREEN
                 );
 
-            } else if ("SELL".equals(best.action)) {
+            } else if ("SELL".equals(
+                    best.action
+            )) {
 
                 bestSignal.setTextColor(
                         Color.RED
@@ -2325,7 +3415,9 @@ public class MainActivity extends AppCompatActivity {
             StringBuilder details =
                     new StringBuilder();
 
-            details.append(bestSymbol);
+            details.append(
+                    bestSymbol
+            );
 
             details.append(
                     "\nTimeframe: "
@@ -2345,15 +3437,21 @@ public class MainActivity extends AppCompatActivity {
 
             details.append("%");
 
-            if ("BUY".equals(best.action) ||
-                    "SELL".equals(best.action)) {
+            if ("BUY".equals(
+                    best.action
+            ) ||
+                    "SELL".equals(
+                            best.action
+                    )) {
 
                 details.append(
                         "\nEntry: "
                 );
 
                 details.append(
-                        formatPrice(best.entry)
+                        formatPrice(
+                                best.entry
+                        )
                 );
 
                 details.append(
@@ -2361,7 +3459,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.sl)
+                        formatPrice(
+                                best.sl
+                        )
                 );
 
                 details.append(
@@ -2369,7 +3469,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.tp1)
+                        formatPrice(
+                                best.tp1
+                        )
                 );
 
                 details.append(
@@ -2377,7 +3479,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.tp2)
+                        formatPrice(
+                                best.tp2
+                        )
                 );
 
                 details.append(
@@ -2385,7 +3489,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.tp3)
+                        formatPrice(
+                                best.tp3
+                        )
                 );
 
             } else {
@@ -2439,7 +3545,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (bestSymbol != null &&
-                "ALL".equals(selectedMarket)) {
+                "ALL".equals(
+                        selectedMarket
+                )) {
 
             chartSymbol =
                     bestSymbol;
@@ -2485,10 +3593,16 @@ public class MainActivity extends AppCompatActivity {
         StringBuilder builder =
                 new StringBuilder();
 
-        for (String item : savedHistory) {
+        for (String item :
+                savedHistory) {
 
-            builder.append(item);
-            builder.append("\n\n");
+            builder.append(
+                    item
+            );
+
+            builder.append(
+                    "\n\n"
+            );
         }
 
         history.setText(
@@ -2499,7 +3613,9 @@ public class MainActivity extends AppCompatActivity {
     private void copyCurrentSignal() {
 
         SignalResult result =
-                currentSignals.get(chartSymbol);
+                currentSignals.get(
+                        chartSymbol
+                );
 
         if (result == null) {
 
@@ -2522,20 +3638,34 @@ public class MainActivity extends AppCompatActivity {
                         result.confidence +
                         "%";
 
-        if ("BUY".equals(result.action) ||
-                "SELL".equals(result.action)) {
+        if ("BUY".equals(
+                result.action
+        ) ||
+                "SELL".equals(
+                        result.action
+                )) {
 
             text +=
                     "\nEntry: " +
-                            formatPrice(result.entry) +
+                            formatPrice(
+                                    result.entry
+                            ) +
                             "\nStop Loss: " +
-                            formatPrice(result.sl) +
+                            formatPrice(
+                                    result.sl
+                            ) +
                             "\nTP1: " +
-                            formatPrice(result.tp1) +
+                            formatPrice(
+                                    result.tp1
+                            ) +
                             "\nTP2: " +
-                            formatPrice(result.tp2) +
+                            formatPrice(
+                                    result.tp2
+                            ) +
                             "\nTP3: " +
-                            formatPrice(result.tp3);
+                            formatPrice(
+                                    result.tp3
+                            );
         }
 
         ClipboardManager clipboard =
@@ -2566,11 +3696,21 @@ public class MainActivity extends AppCompatActivity {
         String[] options = {
                 "EMA 20",
                 "EMA 50",
+                "SMA 200",
+                "RSI 14",
+                "MACD",
+                "Bollinger Bands",
+                "ATR 14",
+                "Stochastic 14",
                 "Clear indicators"
         };
 
-        new AlertDialog.Builder(this)
-                .setTitle("INDICATORS")
+        new AlertDialog.Builder(
+                this
+        )
+                .setTitle(
+                        "TECHNICAL INDICATORS"
+                )
                 .setItems(
                         options,
                         (dialog, which) -> {
@@ -2578,13 +3718,65 @@ public class MainActivity extends AppCompatActivity {
                             if (which == 0) {
 
                                 runChartJavaScript(
-                                        "showEMA20();"
+                                        "setIndicator('EMA20'," +
+                                                "!" +
+                                                "ema20Enabled);"
                                 );
 
                             } else if (which == 1) {
 
                                 runChartJavaScript(
-                                        "showEMA50();"
+                                        "setIndicator('EMA50'," +
+                                                "!" +
+                                                "ema50Enabled);"
+                                );
+
+                            } else if (which == 2) {
+
+                                runChartJavaScript(
+                                        "setIndicator('SMA200'," +
+                                                "!" +
+                                                "sma200Enabled);"
+                                );
+
+                            } else if (which == 3) {
+
+                                runChartJavaScript(
+                                        "setIndicator('RSI'," +
+                                                "!" +
+                                                "rsiEnabled);"
+                                );
+
+                            } else if (which == 4) {
+
+                                runChartJavaScript(
+                                        "setIndicator('MACD'," +
+                                                "!" +
+                                                "macdEnabled);"
+                                );
+
+                            } else if (which == 5) {
+
+                                runChartJavaScript(
+                                        "setIndicator('BOLLINGER'," +
+                                                "!" +
+                                                "bollingerEnabled);"
+                                );
+
+                            } else if (which == 6) {
+
+                                runChartJavaScript(
+                                        "setIndicator('ATR'," +
+                                                "!" +
+                                                "atrEnabled);"
+                                );
+
+                            } else if (which == 7) {
+
+                                runChartJavaScript(
+                                        "setIndicator('STOCHASTIC'," +
+                                                "!" +
+                                                "stochasticEnabled);"
                                 );
 
                             } else {
@@ -2606,8 +3798,12 @@ public class MainActivity extends AppCompatActivity {
                 "Exit drawing mode"
         };
 
-        new AlertDialog.Builder(this)
-                .setTitle("DRAWING TOOLS")
+        new AlertDialog.Builder(
+                this
+        )
+                .setTitle(
+                        "DRAWING TOOLS"
+                )
                 .setItems(
                         options,
                         (dialog, which) -> {
@@ -2704,7 +3900,9 @@ public class MainActivity extends AppCompatActivity {
              i++) {
 
             View child =
-                    mainContent.getChildAt(i);
+                    mainContent.getChildAt(
+                            i
+                    );
 
             if (child != chartWorkspace) {
 
@@ -2716,23 +3914,31 @@ public class MainActivity extends AppCompatActivity {
 
         if (chartContainer != null) {
 
-            chartContainer.getLayoutParams().height =
-                    WindowManager.LayoutParams.MATCH_PARENT;
+            chartContainer
+                    .getLayoutParams()
+                    .height =
+                    WindowManager.LayoutParams
+                            .MATCH_PARENT;
 
             chartContainer.requestLayout();
         }
 
         if (chartWorkspace != null) {
 
-            chartWorkspace.getLayoutParams().height =
-                    WindowManager.LayoutParams.MATCH_PARENT;
+            chartWorkspace
+                    .getLayoutParams()
+                    .height =
+                    WindowManager.LayoutParams
+                            .MATCH_PARENT;
 
             chartWorkspace.requestLayout();
         }
 
         if (mainScroll != null) {
 
-            mainScroll.setFillViewport(true);
+            mainScroll.setFillViewport(
+                    true
+            );
 
             mainScroll.setVerticalScrollBarEnabled(
                     false
@@ -2740,8 +3946,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         getWindow().setFlags(
-                WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN
+                WindowManager.LayoutParams
+                        .FLAG_FULLSCREEN,
+                WindowManager.LayoutParams
+                        .FLAG_FULLSCREEN
         );
 
         if (Build.VERSION.SDK_INT >=
@@ -2751,17 +3959,19 @@ public class MainActivity extends AppCompatActivity {
                     .getDecorView()
                     .setSystemUiVisibility(
                             View.SYSTEM_UI_FLAG_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
-                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                     );
         }
 
         if (fullscreenButton != null) {
 
-            fullscreenButton.setText("EXIT");
+            fullscreenButton.setText(
+                    "EXIT"
+            );
         }
 
         if (chartStatus != null) {
@@ -2778,7 +3988,7 @@ public class MainActivity extends AppCompatActivity {
                 () -> runChartJavaScript(
                         "fitChart();"
                 ),
-                250
+                300
         );
     }
 
@@ -2797,7 +4007,9 @@ public class MainActivity extends AppCompatActivity {
                  i++) {
 
                 View child =
-                        mainContent.getChildAt(i);
+                        mainContent.getChildAt(
+                                i
+                        );
 
                 child.setVisibility(
                         View.VISIBLE
@@ -2807,22 +4019,31 @@ public class MainActivity extends AppCompatActivity {
 
         if (chartContainer != null) {
 
-            chartContainer.getLayoutParams().height =
-                    dpToPx(normalChartHeightDp);
+            chartContainer
+                    .getLayoutParams()
+                    .height =
+                    dpToPx(
+                            normalChartHeightDp
+                    );
 
             chartContainer.requestLayout();
         }
 
         if (chartWorkspace != null) {
 
-            chartWorkspace.getLayoutParams().height =
-                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+            chartWorkspace
+                    .getLayoutParams()
+                    .height =
+                    android.view.ViewGroup
+                            .LayoutParams
+                            .WRAP_CONTENT;
 
             chartWorkspace.requestLayout();
         }
 
         getWindow().clearFlags(
-                WindowManager.LayoutParams.FLAG_FULLSCREEN
+                WindowManager.LayoutParams
+                        .FLAG_FULLSCREEN
         );
 
         if (Build.VERSION.SDK_INT >=
@@ -2837,7 +4058,9 @@ public class MainActivity extends AppCompatActivity {
 
         if (fullscreenButton != null) {
 
-            fullscreenButton.setText("FULL");
+            fullscreenButton.setText(
+                    "FULL"
+            );
         }
 
         updateChartToolbarText();
@@ -2846,11 +4069,13 @@ public class MainActivity extends AppCompatActivity {
                 () -> runChartJavaScript(
                         "fitChart();"
                 ),
-                250
+                300
         );
     }
 
-    private int dpToPx(int dp) {
+    private int dpToPx(
+            int dp
+    ) {
 
         float density =
                 getResources()
@@ -2875,7 +4100,8 @@ public class MainActivity extends AppCompatActivity {
                 ActivityCompat.requestPermissions(
                         this,
                         new String[]{
-                                Manifest.permission.POST_NOTIFICATIONS
+                                Manifest.permission
+                                        .POST_NOTIFICATIONS
                         },
                         1001
                 );
@@ -2888,6 +4114,7 @@ public class MainActivity extends AppCompatActivity {
         try {
 
             if (firebaseAuth != null) {
+
                 firebaseAuth.signOut();
             }
 
@@ -2909,7 +4136,9 @@ public class MainActivity extends AppCompatActivity {
                             Intent.FLAG_ACTIVITY_NEW_TASK
             );
 
-            startActivity(intent);
+            startActivity(
+                    intent
+            );
         }
 
         finish();
