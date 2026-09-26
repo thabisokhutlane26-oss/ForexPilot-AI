@@ -14,7 +14,11 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class TwelveDataClient {
@@ -27,6 +31,32 @@ public class TwelveDataClient {
 
         void error(String error);
     }
+
+    /*
+     * ========================================================
+     * API / REQUEST SETTINGS
+     * ========================================================
+     */
+
+    private static final int NORMAL_CANDLE_SIZE = 100;
+
+    /*
+     * 5,000 candles can consume unnecessary API resources.
+     * 200 is enough for the app's chart/history display.
+     */
+    private static final int CHART_CANDLE_SIZE = 200;
+
+    /*
+     * Prevent identical candle requests from being sent
+     * repeatedly within this period.
+     */
+    private static final long REQUEST_COOLDOWN_MS = 30_000L;
+
+    /*
+     * ========================================================
+     * NETWORK CLIENT
+     * ========================================================
+     */
 
     private final OkHttpClient client;
 
@@ -41,6 +71,24 @@ public class TwelveDataClient {
     private String currentSymbol = "";
 
     private String currentApiKey = "";
+
+    /*
+     * Tracks the last successful/requested candle request.
+     *
+     * Key:
+     * SYMBOL|INTERVAL
+     */
+    private final Map<String, Long> lastRequestTimes =
+            new HashMap<>();
+
+    /*
+     * Tracks requests that are currently running.
+     *
+     * This prevents duplicate API calls when refreshes happen
+     * close together.
+     */
+    private final Set<String> requestsInProgress =
+            new HashSet<>();
 
     public TwelveDataClient(Callback callback) {
 
@@ -92,8 +140,26 @@ public class TwelveDataClient {
             return;
         }
 
-        currentSymbol = symbol.trim();
-        currentApiKey = apiKey.trim();
+        String cleanSymbol = symbol.trim();
+        String cleanApiKey = apiKey.trim();
+
+        /*
+         * If we are already connected to the exact same
+         * symbol using the same API key, do not reconnect.
+         *
+         * Reconnecting unnecessarily wastes network/API
+         * resources.
+         */
+        if (connected
+                && webSocket != null
+                && cleanSymbol.equals(currentSymbol)
+                && cleanApiKey.equals(currentApiKey)) {
+
+            return;
+        }
+
+        currentSymbol = cleanSymbol;
+        currentApiKey = cleanApiKey;
 
         latestPrice = 0;
         connected = false;
@@ -237,6 +303,11 @@ public class TwelveDataClient {
                                     }
 
                                 } catch (Exception ignored) {
+                                    /*
+                                     * Ignore malformed individual
+                                     * WebSocket messages so one bad
+                                     * message does not kill the stream.
+                                     */
                                 }
                             }
 
@@ -295,8 +366,6 @@ public class TwelveDataClient {
     /*
      * ========================================================
      * NORMAL SIGNAL CANDLE REQUEST
-     *
-     * Uses 100 candles to keep scanner API usage reasonable.
      * ========================================================
      */
 
@@ -309,16 +378,19 @@ public class TwelveDataClient {
                 symbol,
                 interval,
                 apiKey,
-                100
+                NORMAL_CANDLE_SIZE
         );
     }
 
     /*
      * ========================================================
-     * LARGE CHART HISTORY REQUEST
+     * CHART HISTORY REQUEST
+     * ========================================================
      *
-     * Can request up to 5,000 candles when MainActivity
-     * specifically asks for chart history.
+     * We intentionally use 200 instead of 5,000.
+     *
+     * The app does not need thousands of candles just to
+     * display a useful mobile chart.
      * ========================================================
      */
 
@@ -331,7 +403,7 @@ public class TwelveDataClient {
                 symbol,
                 interval,
                 apiKey,
-                5000
+                CHART_CANDLE_SIZE
         );
     }
 
@@ -381,6 +453,55 @@ public class TwelveDataClient {
         String cleanInterval = interval.trim();
         String cleanApiKey = apiKey.trim();
 
+        String requestKey =
+                cleanSymbol
+                        + "|"
+                        + cleanInterval;
+
+        /*
+         * ====================================================
+         * DUPLICATE REQUEST PROTECTION
+         * ====================================================
+         */
+
+        synchronized (this) {
+
+            /*
+             * If the same request is already running,
+             * don't send another one.
+             */
+            if (requestsInProgress.contains(requestKey)) {
+
+                return;
+            }
+
+            long now =
+                    System.currentTimeMillis();
+
+            Long lastRequest =
+                    lastRequestTimes.get(
+                            requestKey
+                    );
+
+            /*
+             * If the same request was made recently,
+             * skip it.
+             */
+            if (lastRequest != null
+                    && now - lastRequest
+                    < REQUEST_COOLDOWN_MS) {
+
+                return;
+            }
+
+            requestsInProgress.add(requestKey);
+
+            lastRequestTimes.put(
+                    requestKey,
+                    now
+            );
+        }
+
         String encodedSymbol;
         String encodedInterval;
         String encodedKey;
@@ -406,6 +527,10 @@ public class TwelveDataClient {
                     );
 
         } catch (Exception exception) {
+
+            synchronized (this) {
+                requestsInProgress.remove(requestKey);
+            }
 
             callback.error(
                     cleanSymbol
@@ -436,6 +561,12 @@ public class TwelveDataClient {
                     public void onFailure(
                             Call call,
                             IOException exception) {
+
+                        synchronized (TwelveDataClient.this) {
+                            requestsInProgress.remove(
+                                    requestKey
+                            );
+                        }
 
                         callback.error(
                                 cleanSymbol
@@ -482,10 +613,10 @@ public class TwelveDataClient {
                                     new JSONObject(body);
 
                             /*
-                             * Twelve Data can return an error
-                             * message inside a normal HTTP response.
+                             * Twelve Data may return HTTP 200
+                             * while putting an API error inside
+                             * the JSON response.
                              */
-
                             if (!object.has("values")) {
 
                                 String message =
@@ -618,6 +749,12 @@ public class TwelveDataClient {
 
                         } finally {
 
+                            synchronized (TwelveDataClient.this) {
+                                requestsInProgress.remove(
+                                        requestKey
+                                );
+                            }
+
                             response.close();
                         }
                     }
@@ -646,6 +783,12 @@ public class TwelveDataClient {
 
             webSocket = null;
         }
+
+        /*
+         * Clear request state when this client is closed.
+         */
+        requestsInProgress.clear();
+        lastRequestTimes.clear();
     }
 
     /*
