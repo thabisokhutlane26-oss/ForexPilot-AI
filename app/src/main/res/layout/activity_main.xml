@@ -226,19 +226,116 @@
 
         </HorizontalScrollView>
 
-        <!-- CHART -->
+        <!-- PROFESSIONAL CHART WORKSPACE -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="360dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:orientation="vertical"
             android:background="#0B0F14">
 
-            <WebView
-                android:id="@+id/candleChart"
+            <!-- CHART TOOLBAR -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#0B0F14" />
+                android:layout_height="48dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:background="#101722">
+
+                <TextView
+                    android:id="@+id/chartPair"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="XAU/USD"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:gravity="center_vertical" />
+
+                <Button
+                    android:id="@+id/indicatorButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="IND"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="52dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:backgroundTint="#17202C" />
+
+                <Button
+                    android:id="@+id/drawingButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="5dp"
+                    android:text="DRAW"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="58dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:backgroundTint="#17202C" />
+
+                <Button
+                    android:id="@+id/fitChartButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="5dp"
+                    android:text="FIT"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="52dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:backgroundTint="#17202C" />
+
+                <Button
+                    android:id="@+id/fullscreenButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="5dp"
+                    android:text="FULL"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="58dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:backgroundTint="#17202C" />
+
+            </LinearLayout>
+
+            <!-- CHART -->
+            <FrameLayout
+                android:id="@+id/chartContainer"
+                android:layout_width="match_parent"
+                android:layout_height="390dp"
+                android:background="#0B0F14">
+
+                <WebView
+                    android:id="@+id/candleChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#0B0F14" />
+
+            </FrameLayout>
+
+            <!-- CHART STATUS -->
+            <TextView
+                android:id="@+id/chartStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="7dp"
+                android:paddingBottom="7dp"
+                android:text="Chart ready"
+                android:textColor="#7F8C9F"
+                android:textSize="11sp"
+                android:background="#101722" />
 
         </LinearLayout>
 
