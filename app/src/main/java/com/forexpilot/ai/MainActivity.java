@@ -47,17 +47,10 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREF_SIGNAL_DATE = "signal_date";
     private static final String PREF_DAILY_SIGNAL_COUNT = "daily_signal_count";
 
-    /*
-     * Chart cache
-     *
-     * Candle values are real values received from Twelve Data.
-     * They are stored locally so the last market session remains
-     * visible when the forex market is closed.
-     */
     private static final String PREF_CHART_CACHE_PREFIX = "chart_cache_";
     private static final String PREF_CHART_CACHE_TIME_PREFIX = "chart_cache_time_";
-    private static final int MAX_CACHED_CANDLES = 100;
 
+    private static final int MAX_CACHED_CANDLES = 100;
     private static final int MAX_DAILY_SIGNALS = 2;
 
     private static final String[] SYMBOLS = {
@@ -76,7 +69,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView bestDetails;
     private TextView confirmation;
     private TextView updated;
-    private TextView performanceSummary;
     private TextView signalStatus;
     private TextView signalTime;
     private TextView signalResult;
@@ -85,8 +77,6 @@ public class MainActivity extends AppCompatActivity {
     private Button refreshButton;
     private Button copyButton;
     private Button logoutButton;
-
-    private Button candleChart;
 
     private Button tf5;
     private Button tf15;
@@ -101,9 +91,11 @@ public class MainActivity extends AppCompatActivity {
     private Button marketJpy;
     private Button marketNzd;
 
+    private WebView candleChart;
     private WebView chartWebView;
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Handler handler =
+            new Handler(Looper.getMainLooper());
 
     private final Map<String, SignalResult> currentSignals =
             new HashMap<>();
@@ -122,56 +114,56 @@ public class MainActivity extends AppCompatActivity {
 
     private SharedPreferences preferences;
     private SignalStorage signalStorage;
-
     private FirebaseAuth firebaseAuth;
 
     private String selectedTimeframe = "15min";
     private String selectedMarket = "ALL";
-
     private String chartSymbol = "XAU/USD";
 
     private boolean chartReady = false;
     private boolean scannerRunning = false;
 
-    private final Runnable refreshRunnable = new Runnable() {
-        @Override
-        public void run() {
-            refreshSignals();
-            handler.postDelayed(this, 5 * 60 * 1000L);
-        }
-    };
+    private final Runnable refreshRunnable =
+            new Runnable() {
+                @Override
+                public void run() {
+                    refreshSignals();
+                    handler.postDelayed(
+                            this,
+                            5 * 60 * 1000L
+                    );
+                }
+            };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setContentView(com.forexpilot.ai.R.layout.activity_main);
+        setContentView(
+                com.forexpilot.ai.R.layout.activity_main
+        );
 
         preferences = getSharedPreferences(
                 PREFS_NAME,
                 MODE_PRIVATE
         );
 
-        signalStorage = new SignalStorage(this);
+        signalStorage =
+                new SignalStorage(this);
 
-        firebaseAuth = FirebaseAuth.getInstance();
+        firebaseAuth =
+                FirebaseAuth.getInstance();
 
-        selectedTimeframe = preferences.getString(
-                PREF_SELECTED_TIMEFRAME,
-                "15min"
-        );
+        selectedTimeframe =
+                preferences.getString(
+                        PREF_SELECTED_TIMEFRAME,
+                        "15min"
+                );
 
         bindViews();
         setupChart();
         setupButtons();
-
         loadActiveSignals();
-
-        /*
-         * Load the last real candle data immediately.
-         * This allows the chart to remain visible while
-         * the forex market is closed.
-         */
         loadCachedCandleData();
 
         updateMarketStatus();
@@ -194,17 +186,24 @@ public class MainActivity extends AppCompatActivity {
         bestDetails = findViewById(R.id.bestDetails);
         confirmation = findViewById(R.id.confirmation);
         updated = findViewById(R.id.updated);
-        performanceSummary = findViewById(R.id.performanceSummary);
         signalStatus = findViewById(R.id.signalStatus);
         signalTime = findViewById(R.id.signalTime);
         signalResult = findViewById(R.id.signalResult);
         history = findViewById(R.id.history);
 
-        refreshButton = findViewById(R.id.refreshButton);
-        copyButton = findViewById(R.id.copyButton);
-        logoutButton = findViewById(R.id.logoutButton);
+        refreshButton =
+                findViewById(R.id.refreshButton);
 
-        candleChart = findViewById(R.id.candleChart);
+        copyButton =
+                findViewById(R.id.copyButton);
+
+        logoutButton =
+                findViewById(R.id.logoutButton);
+
+        candleChart =
+                findViewById(R.id.candleChart);
+
+        chartWebView = candleChart;
 
         tf5 = findViewById(R.id.tf5);
         tf15 = findViewById(R.id.tf15);
@@ -213,25 +212,37 @@ public class MainActivity extends AppCompatActivity {
         tf4h = findViewById(R.id.tf4h);
         tf1d = findViewById(R.id.tf1d);
 
-        marketGold = findViewById(R.id.marketGold);
-        marketEur = findViewById(R.id.marketEur);
-        marketGbp = findViewById(R.id.marketGbp);
-        marketJpy = findViewById(R.id.marketJpy);
-        marketNzd = findViewById(R.id.marketNzd);
+        marketGold =
+                findViewById(R.id.marketGold);
 
-        chartWebView = findViewById(R.id.candleChart);
+        marketEur =
+                findViewById(R.id.marketEur);
+
+        marketGbp =
+                findViewById(R.id.marketGbp);
+
+        marketJpy =
+                findViewById(R.id.marketJpy);
+
+        marketNzd =
+                findViewById(R.id.marketNzd);
     }
 
     private void setupButtons() {
 
         if (refreshButton != null) {
             refreshButton.setOnClickListener(v -> {
+
                 updateMarketStatus();
 
                 if (isForexWeekdayOpen()) {
+
                     refreshSignals();
+
                 } else {
+
                     updateChart();
+
                     Toast.makeText(
                             this,
                             "Market closed • showing last real market data",
@@ -242,62 +253,90 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (copyButton != null) {
-            copyButton.setOnClickListener(v -> copyCurrentSignal());
+            copyButton.setOnClickListener(
+                    v -> copyCurrentSignal()
+            );
         }
 
         if (logoutButton != null) {
-            logoutButton.setOnClickListener(v -> logout());
+            logoutButton.setOnClickListener(
+                    v -> logout()
+            );
         }
 
         if (tf5 != null) {
-            tf5.setOnClickListener(v -> selectTimeframe("5min"));
+            tf5.setOnClickListener(
+                    v -> selectTimeframe("5min")
+            );
         }
 
         if (tf15 != null) {
-            tf15.setOnClickListener(v -> selectTimeframe("15min"));
+            tf15.setOnClickListener(
+                    v -> selectTimeframe("15min")
+            );
         }
 
         if (tf30 != null) {
-            tf30.setOnClickListener(v -> selectTimeframe("30min"));
+            tf30.setOnClickListener(
+                    v -> selectTimeframe("30min")
+            );
         }
 
         if (tf1h != null) {
-            tf1h.setOnClickListener(v -> selectTimeframe("1h"));
+            tf1h.setOnClickListener(
+                    v -> selectTimeframe("1h")
+            );
         }
 
         if (tf4h != null) {
-            tf4h.setOnClickListener(v -> selectTimeframe("4h"));
+            tf4h.setOnClickListener(
+                    v -> selectTimeframe("4h")
+            );
         }
 
         if (tf1d != null) {
-            tf1d.setOnClickListener(v -> selectTimeframe("1day"));
+            tf1d.setOnClickListener(
+                    v -> selectTimeframe("1day")
+            );
         }
 
         if (marketGold != null) {
-            marketGold.setOnClickListener(v -> selectMarket("XAU/USD"));
+            marketGold.setOnClickListener(
+                    v -> selectMarket("XAU/USD")
+            );
         }
 
         if (marketEur != null) {
-            marketEur.setOnClickListener(v -> selectMarket("EUR/USD"));
+            marketEur.setOnClickListener(
+                    v -> selectMarket("EUR/USD")
+            );
         }
 
         if (marketGbp != null) {
-            marketGbp.setOnClickListener(v -> selectMarket("GBP/USD"));
+            marketGbp.setOnClickListener(
+                    v -> selectMarket("GBP/USD")
+            );
         }
 
         if (marketJpy != null) {
-            marketJpy.setOnClickListener(v -> selectMarket("USD/JPY"));
+            marketJpy.setOnClickListener(
+                    v -> selectMarket("USD/JPY")
+            );
         }
 
         if (marketNzd != null) {
-            marketNzd.setOnClickListener(v -> selectMarket("NZD/USD"));
+            marketNzd.setOnClickListener(
+                    v -> selectMarket("NZD/USD")
+            );
         }
 
         updateTimeframeButtons();
         updateMarketButtons();
     }
 
-    private void selectTimeframe(String timeframe) {
+    private void selectTimeframe(
+            String timeframe
+    ) {
 
         selectedTimeframe = timeframe;
 
@@ -308,10 +347,6 @@ public class MainActivity extends AppCompatActivity {
                 )
                 .apply();
 
-        /*
-         * The cache key contains the timeframe, so switching
-         * timeframe loads the correct saved candles.
-         */
         loadCachedCandleData();
 
         updateTimeframeButtons();
@@ -324,14 +359,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void selectMarket(String symbol) {
+    private void selectMarket(
+            String symbol
+    ) {
 
         selectedMarket = symbol;
         chartSymbol = symbol;
 
-        /*
-         * Load cached candles for the newly selected pair.
-         */
         loadCachedCandleData();
 
         updateMarketButtons();
@@ -344,12 +378,41 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateTimeframeButtons() {
 
-        setButtonState(tf5, "5M", "5min");
-        setButtonState(tf15, "15M", "15min");
-        setButtonState(tf30, "30M", "30min");
-        setButtonState(tf1h, "1H", "1h");
-        setButtonState(tf4h, "4H", "4h");
-        setButtonState(tf1d, "1D", "1day");
+        setButtonState(
+                tf5,
+                "5M",
+                "5min"
+        );
+
+        setButtonState(
+                tf15,
+                "15M",
+                "15min"
+        );
+
+        setButtonState(
+                tf30,
+                "30M",
+                "30min"
+        );
+
+        setButtonState(
+                tf1h,
+                "1H",
+                "1h"
+        );
+
+        setButtonState(
+                tf4h,
+                "4H",
+                "4h"
+        );
+
+        setButtonState(
+                tf1d,
+                "1D",
+                "1day"
+        );
     }
 
     private void setButtonState(
@@ -358,24 +421,56 @@ public class MainActivity extends AppCompatActivity {
             String timeframe
     ) {
 
-        if (button == null) return;
+        if (button == null) {
+            return;
+        }
 
         button.setText(text);
 
-        if (timeframe.equals(selectedTimeframe)) {
-            button.setTextColor(Color.WHITE);
+        if (timeframe.equals(
+                selectedTimeframe
+        )) {
+            button.setTextColor(
+                    Color.WHITE
+            );
         } else {
-            button.setTextColor(Color.LTGRAY);
+            button.setTextColor(
+                    Color.LTGRAY
+            );
         }
     }
 
     private void updateMarketButtons() {
 
-        setMarketButtonState(marketGold, "XAU/USD", "XAU/USD");
-        setMarketButtonState(marketEur, "EUR/USD", "EUR/USD");
-        setMarketButtonState(marketGbp, "GBP/USD", "GBP/USD");
-        setMarketButtonState(marketJpy, "USD/JPY", "USD/JPY");
-        setMarketButtonState(marketNzd, "NZD/USD", "NZD/USD");
+        setMarketButtonState(
+                marketGold,
+                "XAU/USD",
+                "XAU/USD"
+        );
+
+        setMarketButtonState(
+                marketEur,
+                "EUR/USD",
+                "EUR/USD"
+        );
+
+        setMarketButtonState(
+                marketGbp,
+                "GBP/USD",
+                "GBP/USD"
+        );
+
+        setMarketButtonState(
+                marketJpy,
+                "USD/JPY",
+                "USD/JPY"
+        );
+
+        setMarketButtonState(
+                marketNzd,
+                "NZD/USD",
+                "NZD/USD"
+        );
     }
 
     private void setMarketButtonState(
@@ -384,30 +479,35 @@ public class MainActivity extends AppCompatActivity {
             String symbol
     ) {
 
-        if (button == null) return;
+        if (button == null) {
+            return;
+        }
 
         button.setText(text);
 
         if (symbol.equals(selectedMarket)) {
-            button.setTextColor(Color.WHITE);
+            button.setTextColor(
+                    Color.WHITE
+            );
         } else {
-            button.setTextColor(Color.LTGRAY);
+            button.setTextColor(
+                    Color.LTGRAY
+            );
         }
     }
-
-    /*
-     * ---------------------------------------------------------
-     * MARKET CLOCK
-     * ---------------------------------------------------------
-     */
 
     private boolean isForexWeekdayOpen() {
 
         ZonedDateTime ny =
                 java.time.Instant.now()
-                        .atZone(ZoneId.of("America/New_York"));
+                        .atZone(
+                                ZoneId.of(
+                                        "America/New_York"
+                                )
+                        );
 
-        DayOfWeek day = ny.getDayOfWeek();
+        DayOfWeek day =
+                ny.getDayOfWeek();
 
         if (day == DayOfWeek.SATURDAY) {
             return false;
@@ -424,29 +524,46 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateMarketStatus() {
 
-        boolean open = isForexWeekdayOpen();
+        boolean open =
+                isForexWeekdayOpen();
 
         if (market != null) {
 
             if (open) {
-                market.setText("FOREX MARKET: OPEN");
-                market.setTextColor(Color.GREEN);
+
+                market.setText(
+                        "FOREX MARKET: OPEN"
+                );
+
+                market.setTextColor(
+                        Color.GREEN
+                );
+
             } else {
-                market.setText("FOREX MARKET: CLOSED");
-                market.setTextColor(Color.RED);
+
+                market.setText(
+                        "FOREX MARKET: CLOSED"
+                );
+
+                market.setTextColor(
+                        Color.RED
+                );
             }
         }
 
         if (session != null) {
 
             if (open) {
+
                 session.setText(
                         "Session: " +
                                 MarketClock.session(
                                         java.time.Instant.now()
                                 )
                 );
+
             } else {
+
                 session.setText(
                         "Weekend / market closed"
                 );
@@ -456,8 +573,13 @@ public class MainActivity extends AppCompatActivity {
         if (scanner != null) {
 
             if (open) {
-                scanner.setText("Scanner: ACTIVE");
+
+                scanner.setText(
+                        "Scanner: ACTIVE"
+                );
+
             } else {
+
                 scanner.setText(
                         "Scanner: PAUSED • NO NEW SIGNALS"
                 );
@@ -465,21 +587,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (open) {
+
             showDailySignalStatus();
-        } else {
-            if (confirmation != null) {
-                confirmation.setText(
-                        "MARKET CLOSED • NEW SIGNALS PAUSED"
-                );
-            }
+
+        } else if (confirmation != null) {
+
+            confirmation.setText(
+                    "MARKET CLOSED • NEW SIGNALS PAUSED"
+            );
         }
     }
-
-    /*
-     * ---------------------------------------------------------
-     * DAILY SIGNAL LIMIT
-     * ---------------------------------------------------------
-     */
 
     private String todayKey() {
 
@@ -491,12 +608,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void resetDailyCounterIfNeeded() {
 
-        String today = todayKey();
+        String today =
+                todayKey();
 
-        String savedDate = preferences.getString(
-                PREF_SIGNAL_DATE,
-                ""
-        );
+        String savedDate =
+                preferences.getString(
+                        PREF_SIGNAL_DATE,
+                        ""
+                );
 
         if (!today.equals(savedDate)) {
 
@@ -551,12 +670,14 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
 
-        return getDailySignalCount() < MAX_DAILY_SIGNALS;
+        return getDailySignalCount()
+                < MAX_DAILY_SIGNALS;
     }
 
     private void showDailySignalStatus() {
 
-        int count = getDailySignalCount();
+        int count =
+                getDailySignalCount();
 
         if (confirmation != null) {
 
@@ -569,12 +690,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * ---------------------------------------------------------
-     * SCANNER
-     * ---------------------------------------------------------
-     */
-
     private void startScanner() {
 
         if (scannerRunning) {
@@ -585,16 +700,11 @@ public class MainActivity extends AppCompatActivity {
 
         updateMarketStatus();
 
-        /*
-         * IMPORTANT:
-         * Do not request Twelve Data candles while the
-         * forex market is closed.
-         *
-         * Existing active trades are still tracked.
-         */
         if (!isForexWeekdayOpen()) {
+
             updateChart();
             startLivePriceConnections();
+
             return;
         }
 
@@ -607,15 +717,12 @@ public class MainActivity extends AppCompatActivity {
 
         updateMarketStatus();
 
-        /*
-         * Closed market = no new candle request.
-         * Existing trades continue through live tracking.
-         */
         if (!isForexWeekdayOpen()) {
 
             updateChart();
 
             if (updated != null) {
+
                 updated.setText(
                         "LAST REAL MARKET DATA • MARKET CLOSED"
                 );
@@ -626,28 +733,29 @@ public class MainActivity extends AppCompatActivity {
 
         resetDailyCounterIfNeeded();
 
-        /*
-         * If today's two signals have already been used,
-         * do not spend more Twelve Data requests searching
-         * for additional new signals.
-         */
-        if (getDailySignalCount() >= MAX_DAILY_SIGNALS) {
+        if (getDailySignalCount()
+                >= MAX_DAILY_SIGNALS) {
 
             if (confirmation != null) {
+
                 confirmation.setText(
                         "2/2 DAILY SIGNALS USED • WAITING FOR TOMORROW"
                 );
             }
 
             updateChart();
+
             return;
         }
 
-        String apiKey = getApiKey();
+        String apiKey =
+                getApiKey();
 
-        if (apiKey == null || apiKey.trim().isEmpty()) {
+        if (apiKey == null ||
+                apiKey.trim().isEmpty()) {
 
             if (confirmation != null) {
+
                 confirmation.setText(
                         "API KEY REQUIRED"
                 );
@@ -659,17 +767,27 @@ public class MainActivity extends AppCompatActivity {
         List<String> symbolsToScan =
                 new ArrayList<>();
 
-        if ("ALL".equals(selectedMarket)) {
+        if ("ALL".equals(
+                selectedMarket
+        )) {
 
-            for (String symbol : SYMBOLS) {
-                symbolsToScan.add(symbol);
+            for (String symbol :
+                    SYMBOLS) {
+
+                symbolsToScan.add(
+                        symbol
+                );
             }
 
         } else {
-            symbolsToScan.add(selectedMarket);
+
+            symbolsToScan.add(
+                    selectedMarket
+            );
         }
 
-        for (String symbol : symbolsToScan) {
+        for (String symbol :
+                symbolsToScan) {
 
             if (!isNewSignalAllowed()) {
                 break;
@@ -687,9 +805,6 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
-        /*
-         * Keep the chart updated using the data already available.
-         */
         updateChart();
     }
 
@@ -700,12 +815,6 @@ public class MainActivity extends AppCompatActivity {
                 ""
         );
     }
-
-    /*
-     * ---------------------------------------------------------
-     * TWELVE DATA CALLBACK
-     * ---------------------------------------------------------
-     */
 
     private class PairCallback
             implements TwelveDataClient.Callback {
@@ -722,6 +831,7 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> {
 
                 if (price > 0) {
+
                     latestPrices.put(
                             symbol,
                             price
@@ -735,31 +845,36 @@ public class MainActivity extends AppCompatActivity {
 
                 updateBestSignalDisplay();
 
-                if (symbol.equals(chartSymbol)) {
+                if (symbol.equals(
+                        chartSymbol
+                )) {
+
                     updateChart();
                 }
             });
         }
 
         @Override
-        public void candles(List<Candle> candles) {
+        public void candles(
+                List<Candle> candles
+        ) {
 
-            if (candles == null || candles.isEmpty()) {
+            if (candles == null ||
+                    candles.isEmpty()) {
+
                 return;
             }
 
             List<Candle> copy =
-                    new ArrayList<>(candles);
+                    new ArrayList<>(
+                            candles
+                    );
 
             candleData.put(
                     symbol,
                     copy
             );
 
-            /*
-             * NEW:
-             * Save the REAL Twelve Data candles locally.
-             */
             saveCachedCandles(
                     symbol,
                     copy
@@ -775,6 +890,7 @@ public class MainActivity extends AppCompatActivity {
                 updateChart();
 
                 if (updated != null) {
+
                     updated.setText(
                             "LIVE MARKET DATA • " +
                                     symbol
@@ -784,24 +900,22 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public void error(String message) {
+        public void error(
+                String message
+        ) {
 
             runOnUiThread(() -> {
 
                 if (updated != null) {
+
                     updated.setText(
-                            "DATA ERROR • " + message
+                            "DATA ERROR • " +
+                                    message
                     );
                 }
             });
         }
     }
-
-    /*
-     * ---------------------------------------------------------
-     * SIGNAL PROCESSING
-     * ---------------------------------------------------------
-     */
 
     private void processCurrentSignal(
             String symbol,
@@ -810,6 +924,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (candles == null ||
                 candles.size() < 60) {
+
             return;
         }
 
@@ -838,27 +953,28 @@ public class MainActivity extends AppCompatActivity {
                 result
         );
 
-        /*
-         * WAIT is not a new signal.
-         */
-        if (!"BUY".equals(result.action)
-                && !"SELL".equals(result.action)) {
+        if (!"BUY".equals(
+                result.action
+        ) && !"SELL".equals(
+                result.action
+        )) {
 
             updateBestSignalDisplay();
+
             return;
         }
 
-        /*
-         * Existing active trade:
-         * don't create another trade for the same pair.
-         */
         SignalResult existing =
-                activeTrades.get(symbol);
+                activeTrades.get(
+                        symbol
+                );
 
         if (existing != null &&
                 existing.isOpen()) {
 
-            existing.updateStatus(livePrice);
+            existing.updateStatus(
+                    livePrice
+            );
 
             signalStorage.saveActiveSignal(
                     symbol,
@@ -866,17 +982,14 @@ public class MainActivity extends AppCompatActivity {
             );
 
             updateBestSignalDisplay();
+
             return;
         }
 
-        /*
-         * Hard protection:
-         * market must be open and daily limit must
-         * still allow another new signal.
-         */
         if (!isNewSignalAllowed()) {
 
             updateBestSignalDisplay();
+
             return;
         }
 
@@ -895,8 +1008,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (!"BUY".equals(result.action)
-                && !"SELL".equals(result.action)) {
+        if (!"BUY".equals(
+                result.action
+        ) && !"SELL".equals(
+                result.action
+        )) {
+
             return;
         }
 
@@ -905,10 +1022,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult existing =
-                activeTrades.get(symbol);
+                activeTrades.get(
+                        symbol
+                );
 
         if (existing != null &&
                 existing.isOpen()) {
+
             return;
         }
 
@@ -954,12 +1074,6 @@ public class MainActivity extends AppCompatActivity {
         showDailySignalStatus();
     }
 
-    /*
-     * ---------------------------------------------------------
-     * ACTIVE TRADE TRACKING
-     * ---------------------------------------------------------
-     */
-
     private void checkActiveTrade(
             String symbol,
             double currentPrice
@@ -970,7 +1084,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult trade =
-                activeTrades.get(symbol);
+                activeTrades.get(
+                        symbol
+                );
 
         if (trade == null) {
             return;
@@ -997,7 +1113,9 @@ public class MainActivity extends AppCompatActivity {
                 trade
         );
 
-        if (!oldStatus.equals(trade.status)) {
+        if (!oldStatus.equals(
+                trade.status
+        )) {
 
             if (trade.isCompleted()) {
 
@@ -1013,7 +1131,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadActiveSignals() {
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
             candleData.put(
                     symbol,
@@ -1027,19 +1146,18 @@ public class MainActivity extends AppCompatActivity {
         if (saved != null) {
 
             activeTrades.clear();
-            activeTrades.putAll(saved);
 
-            currentSignals.putAll(saved);
+            activeTrades.putAll(
+                    saved
+            );
+
+            currentSignals.putAll(
+                    saved
+            );
         }
 
         updateHistoryDisplay();
     }
-
-    /*
-     * ---------------------------------------------------------
-     * CHART CACHE
-     * ---------------------------------------------------------
-     */
 
     private String chartCacheKey(
             String symbol
@@ -1047,13 +1165,25 @@ public class MainActivity extends AppCompatActivity {
 
         String safeSymbol =
                 symbol
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         String safeTimeframe =
                 selectedTimeframe
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         return PREF_CHART_CACHE_PREFIX +
                 safeSymbol +
@@ -1067,13 +1197,25 @@ public class MainActivity extends AppCompatActivity {
 
         String safeSymbol =
                 symbol
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         String safeTimeframe =
                 selectedTimeframe
-                        .replace("/", "_")
-                        .replace(" ", "_");
+                        .replace(
+                                "/",
+                                "_"
+                        )
+                        .replace(
+                                " ",
+                                "_"
+                        );
 
         return PREF_CHART_CACHE_TIME_PREFIX +
                 safeSymbol +
@@ -1088,6 +1230,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (candles == null ||
                 candles.isEmpty()) {
+
             return;
         }
 
@@ -1133,7 +1276,9 @@ public class MainActivity extends AppCompatActivity {
                         c.close
                 );
 
-                array.put(object);
+                array.put(
+                        object
+                );
             }
 
             preferences.edit()
@@ -1153,10 +1298,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadCachedCandleData() {
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
             List<Candle> candles =
-                    loadCachedCandles(symbol);
+                    loadCachedCandles(
+                            symbol
+                    );
 
             candleData.put(
                     symbol,
@@ -1196,24 +1344,20 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject object =
                         array.getJSONObject(i);
 
-                double open =
-                        object.getDouble("open");
-
-                double high =
-                        object.getDouble("high");
-
-                double low =
-                        object.getDouble("low");
-
-                double close =
-                        object.getDouble("close");
-
                 result.add(
                         new Candle(
-                                open,
-                                high,
-                                low,
-                                close
+                                object.getDouble(
+                                        "open"
+                                ),
+                                object.getDouble(
+                                        "high"
+                                ),
+                                object.getDouble(
+                                        "low"
+                                ),
+                                object.getDouble(
+                                        "close"
+                                )
                         )
                 );
             }
@@ -1260,12 +1404,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * ---------------------------------------------------------
-     * WEBVIEW LIGHTWEIGHT CHART
-     * ---------------------------------------------------------
-     */
-
     private void setupChart() {
 
         if (chartWebView == null) {
@@ -1280,7 +1418,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadsImagesAutomatically(true);
 
         chartWebView.setBackgroundColor(
-                Color.rgb(11, 15, 20)
+                Color.rgb(
+                        11,
+                        15,
+                        20
+                )
         );
 
         chartWebView.setWebViewClient(
@@ -1404,9 +1546,7 @@ public class MainActivity extends AppCompatActivity {
                 "secondsVisible:false" +
                 "}," +
 
-                "crosshair:{" +
-                "mode:1" +
-                "}" +
+                "crosshair:{mode:1}" +
 
                 "});" +
 
@@ -1466,75 +1606,48 @@ public class MainActivity extends AppCompatActivity {
                 "candleSeries.setData(data);" +
 
                 "if(entry>0){" +
-
                 "candleSeries.createPriceLine({" +
-                "price:entry," +
-                "color:'#FFFFFF'," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:'ENTRY'" +
+                "price:entry,color:'#FFFFFF'," +
+                "lineWidth:1,lineStyle:2," +
+                "axisLabelVisible:true,title:'ENTRY'" +
                 "});" +
-
                 "}" +
 
                 "if(sl>0){" +
-
                 "candleSeries.createPriceLine({" +
-                "price:sl," +
-                "color:'#EA3943'," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:'SL'" +
+                "price:sl,color:'#EA3943'," +
+                "lineWidth:1,lineStyle:2," +
+                "axisLabelVisible:true,title:'SL'" +
                 "});" +
-
                 "}" +
 
                 "if(tp1>0){" +
-
                 "candleSeries.createPriceLine({" +
-                "price:tp1," +
-                "color:'#16C784'," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:'TP1'" +
+                "price:tp1,color:'#16C784'," +
+                "lineWidth:1,lineStyle:2," +
+                "axisLabelVisible:true,title:'TP1'" +
                 "});" +
-
                 "}" +
 
                 "if(tp2>0){" +
-
                 "candleSeries.createPriceLine({" +
-                "price:tp2," +
-                "color:'#16C784'," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:'TP2'" +
+                "price:tp2,color:'#16C784'," +
+                "lineWidth:1,lineStyle:2," +
+                "axisLabelVisible:true,title:'TP2'" +
                 "});" +
-
                 "}" +
 
                 "if(tp3>0){" +
-
                 "candleSeries.createPriceLine({" +
-                "price:tp3," +
-                "color:'#16C784'," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:'TP3'" +
+                "price:tp3,color:'#16C784'," +
+                "lineWidth:1,lineStyle:2," +
+                "axisLabelVisible:true,title:'TP3'" +
                 "});" +
-
                 "}" +
 
                 "chart.timeScale().fitContent();" +
 
-                "setStatus(" +
-                "statusText + ' • ' + symbol" +
-                ");" +
+                "setStatus(statusText+' • '+symbol);" +
 
                 "}" +
 
@@ -1562,7 +1675,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         List<Candle> candles =
-                candleData.get(chartSymbol);
+                candleData.get(
+                        chartSymbol
+                );
 
         if (candles == null ||
                 candles.isEmpty()) {
@@ -1589,14 +1704,6 @@ public class MainActivity extends AppCompatActivity {
                             selectedTimeframe
                     );
 
-            /*
-             * Candle.java currently contains OHLC only,
-             * not a timestamp.
-             *
-             * For the cached chart we preserve the real
-             * OHLC values and place them at the appropriate
-             * timeframe spacing.
-             */
             long firstTime =
                     nowSeconds -
                             ((long) candles.size()
@@ -1654,8 +1761,12 @@ public class MainActivity extends AppCompatActivity {
             double tp3 = 0;
 
             if (result != null &&
-                    ("BUY".equals(result.action)
-                            || "SELL".equals(result.action))) {
+                    ("BUY".equals(
+                            result.action
+                    ) ||
+                     "SELL".equals(
+                             result.action
+                     ))) {
 
                 entry = result.entry;
                 sl = result.sl;
@@ -1669,12 +1780,9 @@ public class MainActivity extends AppCompatActivity {
                             chartSymbol
                     );
 
-            boolean marketOpen =
-                    isForexWeekdayOpen();
-
             String chartStatus;
 
-            if (marketOpen) {
+            if (isForexWeekdayOpen()) {
 
                 chartStatus =
                         "LIVE MARKET DATA";
@@ -1711,18 +1819,16 @@ public class MainActivity extends AppCompatActivity {
                             );
 
             String jsSymbol =
-                    chartSymbol
-                            .replace(
-                                    "'",
-                                    "\\'"
-                            );
+                    chartSymbol.replace(
+                            "'",
+                            "\\'"
+                    );
 
             String jsStatus =
-                    chartStatus
-                            .replace(
-                                    "'",
-                                    "\\'"
-                            );
+                    chartStatus.replace(
+                            "'",
+                            "\\'"
+                    );
 
             String javascript =
                     "setChartData(" +
@@ -1788,25 +1894,6 @@ public class MainActivity extends AppCompatActivity {
         return 15L * 60L;
     }
 
-    private String getChartSymbol() {
-
-        if (selectedMarket != null &&
-                !"ALL".equals(selectedMarket)) {
-
-            return selectedMarket;
-        }
-
-        return chartSymbol == null
-                ? "XAU/USD"
-                : chartSymbol;
-    }
-
-    /*
-     * ---------------------------------------------------------
-     * LIVE PRICE CONNECTIONS
-     * ---------------------------------------------------------
-     */
-
     private void startLivePriceConnections() {
 
         String apiKey =
@@ -1814,12 +1901,17 @@ public class MainActivity extends AppCompatActivity {
 
         if (apiKey == null ||
                 apiKey.trim().isEmpty()) {
+
             return;
         }
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
-            if (liveClients.containsKey(symbol)) {
+            if (liveClients.containsKey(
+                    symbol
+            )) {
+
                 continue;
             }
 
@@ -1854,21 +1946,18 @@ public class MainActivity extends AppCompatActivity {
         liveClients.clear();
     }
 
-    /*
-     * ---------------------------------------------------------
-     * DISPLAY
-     * ---------------------------------------------------------
-     */
-
     private void updateBestSignalDisplay() {
 
         SignalResult best = null;
         String bestSymbol = null;
 
-        for (String symbol : SYMBOLS) {
+        for (String symbol :
+                SYMBOLS) {
 
             SignalResult result =
-                    currentSignals.get(symbol);
+                    currentSignals.get(
+                            symbol
+                    );
 
             if (result == null) {
                 continue;
@@ -1887,9 +1976,13 @@ public class MainActivity extends AppCompatActivity {
 
             if (bestSignal != null) {
                 bestSignal.setText("WAIT");
+                bestSignal.setTextColor(
+                        Color.LTGRAY
+                );
             }
 
             if (bestDetails != null) {
+
                 bestDetails.setText(
                         "Waiting for market data"
                 );
@@ -1904,13 +1997,17 @@ public class MainActivity extends AppCompatActivity {
                     best.action
             );
 
-            if ("BUY".equals(best.action)) {
+            if ("BUY".equals(
+                    best.action
+            )) {
 
                 bestSignal.setTextColor(
                         Color.GREEN
                 );
 
-            } else if ("SELL".equals(best.action)) {
+            } else if ("SELL".equals(
+                    best.action
+            )) {
 
                 bestSignal.setTextColor(
                         Color.RED
@@ -1934,11 +2031,7 @@ public class MainActivity extends AppCompatActivity {
             );
 
             details.append(
-                    "\n"
-            );
-
-            details.append(
-                    "Timeframe: "
+                    "\nTimeframe: "
             );
 
             details.append(
@@ -1953,15 +2046,22 @@ public class MainActivity extends AppCompatActivity {
                     best.confidence
             );
 
-            if ("BUY".equals(best.action)
-                    || "SELL".equals(best.action)) {
+            details.append("%");
+
+            if ("BUY".equals(
+                    best.action
+            ) || "SELL".equals(
+                    best.action
+            )) {
 
                 details.append(
-                        "%\nEntry: "
+                        "\nEntry: "
                 );
 
                 details.append(
-                        formatPrice(best.entry)
+                        formatPrice(
+                                best.entry
+                        )
                 );
 
                 details.append(
@@ -1969,7 +2069,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.sl)
+                        formatPrice(
+                                best.sl
+                        )
                 );
 
                 details.append(
@@ -1977,7 +2079,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.tp1)
+                        formatPrice(
+                                best.tp1
+                        )
                 );
 
                 details.append(
@@ -1985,7 +2089,9 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.tp2)
+                        formatPrice(
+                                best.tp2
+                        )
                 );
 
                 details.append(
@@ -1993,13 +2099,15 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(best.tp3)
+                        formatPrice(
+                                best.tp3
+                        )
                 );
 
             } else {
 
                 details.append(
-                        "%\nNo confirmed setup"
+                        "\nNo confirmed setup"
                 );
             }
 
@@ -2009,6 +2117,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (signalStatus != null) {
+
             signalStatus.setText(
                     best.status
             );
@@ -2045,18 +2154,21 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        /*
-         * Put chart on the best available signal pair.
-         */
         if (bestSymbol != null &&
-                "ALL".equals(selectedMarket)) {
+                "ALL".equals(
+                        selectedMarket
+                )) {
 
-            chartSymbol = bestSymbol;
+            chartSymbol =
+                    bestSymbol;
+
             updateChart();
         }
     }
 
-    private String formatPrice(double value) {
+    private String formatPrice(
+            double value
+    ) {
 
         if (value <= 0) {
             return "-";
@@ -2123,19 +2235,19 @@ public class MainActivity extends AppCompatActivity {
 
         String text =
                 chartSymbol +
-                        "\n" +
-                        "Timeframe: " +
+                        "\nTimeframe: " +
                         selectedTimeframe +
-                        "\n" +
-                        "Signal: " +
+                        "\nSignal: " +
                         result.action +
-                        "\n" +
-                        "Confidence: " +
+                        "\nConfidence: " +
                         result.confidence +
                         "%";
 
-        if ("BUY".equals(result.action)
-                || "SELL".equals(result.action)) {
+        if ("BUY".equals(
+                result.action
+        ) || "SELL".equals(
+                result.action
+        )) {
 
             text +=
                     "\nEntry: " +
@@ -2183,12 +2295,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*
-     * ---------------------------------------------------------
-     * NOTIFICATIONS
-     * ---------------------------------------------------------
-     */
-
     private void requestNotificationPermission() {
 
         if (Build.VERSION.SDK_INT >=
@@ -2209,12 +2315,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
-    /*
-     * ---------------------------------------------------------
-     * LOGOUT
-     * ---------------------------------------------------------
-     */
 
     private void logout() {
 
@@ -2255,10 +2355,6 @@ public class MainActivity extends AppCompatActivity {
 
         updateMarketStatus();
 
-        /*
-         * Load cached candles again in case the user
-         * changed timeframe while the Activity was paused.
-         */
         loadCachedCandleData();
 
         updateChart();
@@ -2272,12 +2368,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
 
         super.onPause();
-
-        /*
-         * We do not destroy cached chart data.
-         * It remains in SharedPreferences for the next
-         * app launch.
-         */
     }
 
     @Override
