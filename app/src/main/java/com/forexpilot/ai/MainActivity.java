@@ -14,7 +14,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -269,36 +268,44 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.marketNzd);
 
         if (chartContainer != null) {
-            normalChartHeightDp =
-                    chartContainer.getLayoutParams().height > 0
-                            ? 390
-                            : 390;
+            normalChartHeightDp = 390;
         }
 
+        /*
+         * getParent() returns ViewParent.
+         * We safely check the type before casting.
+         */
         if (chartContainer != null) {
-            View parent = chartContainer.getParent();
+
+            android.view.ViewParent parent =
+                    chartContainer.getParent();
 
             if (parent instanceof LinearLayout) {
+
                 chartWorkspace =
                         (LinearLayout) parent;
             }
         }
 
         if (chartWorkspace != null) {
-            View parent =
+
+            android.view.ViewParent parent =
                     chartWorkspace.getParent();
 
             if (parent instanceof LinearLayout) {
+
                 mainContent =
                         (LinearLayout) parent;
             }
         }
 
         if (mainContent != null) {
-            View parent =
+
+            android.view.ViewParent parent =
                     mainContent.getParent();
 
             if (parent instanceof ScrollView) {
+
                 mainScroll =
                         (ScrollView) parent;
             }
@@ -308,6 +315,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupButtons() {
 
         if (refreshButton != null) {
+
             refreshButton.setOnClickListener(v -> {
 
                 updateMarketStatus();
@@ -330,102 +338,119 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (copyButton != null) {
+
             copyButton.setOnClickListener(
                     v -> copyCurrentSignal()
             );
         }
 
         if (logoutButton != null) {
+
             logoutButton.setOnClickListener(
                     v -> logout()
             );
         }
 
         if (indicatorButton != null) {
+
             indicatorButton.setOnClickListener(
                     v -> showIndicatorMenu()
             );
         }
 
         if (drawingButton != null) {
+
             drawingButton.setOnClickListener(
                     v -> showDrawingMenu()
             );
         }
 
         if (fitChartButton != null) {
+
             fitChartButton.setOnClickListener(
                     v -> fitChart()
             );
         }
 
         if (fullscreenButton != null) {
+
             fullscreenButton.setOnClickListener(
                     v -> toggleChartFullscreen()
             );
         }
 
         if (tf5 != null) {
+
             tf5.setOnClickListener(
                     v -> selectTimeframe("5min")
             );
         }
 
         if (tf15 != null) {
+
             tf15.setOnClickListener(
                     v -> selectTimeframe("15min")
             );
         }
 
         if (tf30 != null) {
+
             tf30.setOnClickListener(
                     v -> selectTimeframe("30min")
             );
         }
 
         if (tf1h != null) {
+
             tf1h.setOnClickListener(
                     v -> selectTimeframe("1h")
             );
         }
 
         if (tf4h != null) {
+
             tf4h.setOnClickListener(
                     v -> selectTimeframe("4h")
             );
         }
 
         if (tf1d != null) {
+
             tf1d.setOnClickListener(
                     v -> selectTimeframe("1day")
             );
         }
 
         if (marketGold != null) {
+
             marketGold.setOnClickListener(
                     v -> selectMarket("XAU/USD")
             );
         }
 
         if (marketEur != null) {
+
             marketEur.setOnClickListener(
                     v -> selectMarket("EUR/USD")
             );
         }
 
         if (marketGbp != null) {
+
             marketGbp.setOnClickListener(
                     v -> selectMarket("GBP/USD")
             );
         }
 
         if (marketJpy != null) {
+
             marketJpy.setOnClickListener(
                     v -> selectMarket("USD/JPY")
             );
         }
 
         if (marketNzd != null) {
+
             marketNzd.setOnClickListener(
                     v -> selectMarket("NZD/USD")
             );
@@ -439,12 +464,14 @@ public class MainActivity extends AppCompatActivity {
     private void updateChartToolbarText() {
 
         if (chartPair != null) {
+
             chartPair.setText(
                     chartSymbol
             );
         }
 
         if (chartStatus != null) {
+
             chartStatus.setText(
                     "Professional chart • " +
                             selectedTimeframe
@@ -472,8 +499,11 @@ public class MainActivity extends AppCompatActivity {
         updateChart();
 
         if (isForexWeekdayOpen()) {
+
             refreshSignals();
+
         } else {
+
             updateMarketStatus();
         }
     }
@@ -492,47 +522,19 @@ public class MainActivity extends AppCompatActivity {
         updateChart();
 
         if (isForexWeekdayOpen()) {
+
             refreshSignals();
         }
     }
 
     private void updateTimeframeButtons() {
 
-        setButtonState(
-                tf5,
-                "5M",
-                "5min"
-        );
-
-        setButtonState(
-                tf15,
-                "15M",
-                "15min"
-        );
-
-        setButtonState(
-                tf30,
-                "30M",
-                "30min"
-        );
-
-        setButtonState(
-                tf1h,
-                "1H",
-                "1h"
-        );
-
-        setButtonState(
-                tf4h,
-                "4H",
-                "4h"
-        );
-
-        setButtonState(
-                tf1d,
-                "1D",
-                "1day"
-        );
+        setButtonState(tf5, "5M", "5min");
+        setButtonState(tf15, "15M", "15min");
+        setButtonState(tf30, "30M", "30min");
+        setButtonState(tf1h, "1H", "1h");
+        setButtonState(tf4h, "4H", "4h");
+        setButtonState(tf1d, "1D", "1day");
     }
 
     private void setButtonState(
@@ -547,19 +549,13 @@ public class MainActivity extends AppCompatActivity {
 
         button.setText(text);
 
-        if (timeframe.equals(
-                selectedTimeframe
-        )) {
+        if (timeframe.equals(selectedTimeframe)) {
 
-            button.setTextColor(
-                    Color.WHITE
-            );
+            button.setTextColor(Color.WHITE);
 
         } else {
 
-            button.setTextColor(
-                    Color.LTGRAY
-            );
+            button.setTextColor(Color.LTGRAY);
         }
     }
 
@@ -608,19 +604,13 @@ public class MainActivity extends AppCompatActivity {
 
         button.setText(text);
 
-        if (symbol.equals(
-                selectedMarket
-        )) {
+        if (symbol.equals(selectedMarket)) {
 
-            button.setTextColor(
-                    Color.WHITE
-            );
+            button.setTextColor(Color.WHITE);
 
         } else {
 
-            button.setTextColor(
-                    Color.LTGRAY
-            );
+            button.setTextColor(Color.LTGRAY);
         }
     }
 
@@ -647,9 +637,7 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
 
-        return MarketClock.isForexOpen(
-                now
-        );
+        return MarketClock.isForexOpen(now);
     }
 
     private void updateMarketStatus() {
@@ -896,16 +884,11 @@ public class MainActivity extends AppCompatActivity {
         List<String> symbolsToScan =
                 new ArrayList<>();
 
-        if ("ALL".equals(
-                selectedMarket
-        )) {
+        if ("ALL".equals(selectedMarket)) {
 
-            for (String symbol :
-                    SYMBOLS) {
+            for (String symbol : SYMBOLS) {
 
-                symbolsToScan.add(
-                        symbol
-                );
+                symbolsToScan.add(symbol);
             }
 
         } else {
@@ -974,9 +957,7 @@ public class MainActivity extends AppCompatActivity {
 
                 updateBestSignalDisplay();
 
-                if (symbol.equals(
-                        chartSymbol
-                )) {
+                if (symbol.equals(chartSymbol)) {
 
                     updateChart();
                 }
@@ -995,9 +976,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             List<Candle> copy =
-                    new ArrayList<>(
-                            candles
-                    );
+                    new ArrayList<>(candles);
 
             candleData.put(
                     symbol,
@@ -1082,11 +1061,8 @@ public class MainActivity extends AppCompatActivity {
                 result
         );
 
-        if (!"BUY".equals(
-                result.action
-        ) && !"SELL".equals(
-                result.action
-        )) {
+        if (!"BUY".equals(result.action) &&
+                !"SELL".equals(result.action)) {
 
             updateBestSignalDisplay();
 
@@ -1094,9 +1070,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult existing =
-                activeTrades.get(
-                        symbol
-                );
+                activeTrades.get(symbol);
 
         if (existing != null &&
                 existing.isOpen()) {
@@ -1137,11 +1111,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (!"BUY".equals(
-                result.action
-        ) && !"SELL".equals(
-                result.action
-        )) {
+        if (!"BUY".equals(result.action) &&
+                !"SELL".equals(result.action)) {
 
             return;
         }
@@ -1151,9 +1122,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult existing =
-                activeTrades.get(
-                        symbol
-                );
+                activeTrades.get(symbol);
 
         if (existing != null &&
                 existing.isOpen()) {
@@ -1213,9 +1182,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         SignalResult trade =
-                activeTrades.get(
-                        symbol
-                );
+                activeTrades.get(symbol);
 
         if (trade == null) {
             return;
@@ -1242,9 +1209,7 @@ public class MainActivity extends AppCompatActivity {
                 trade
         );
 
-        if (!oldStatus.equals(
-                trade.status
-        )) {
+        if (!oldStatus.equals(trade.status)) {
 
             if (trade.isCompleted()) {
 
@@ -1260,8 +1225,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadActiveSignals() {
 
-        for (String symbol :
-                SYMBOLS) {
+        for (String symbol : SYMBOLS) {
 
             candleData.put(
                     symbol,
@@ -1276,13 +1240,9 @@ public class MainActivity extends AppCompatActivity {
 
             activeTrades.clear();
 
-            activeTrades.putAll(
-                    saved
-            );
+            activeTrades.putAll(saved);
 
-            currentSignals.putAll(
-                    saved
-            );
+            currentSignals.putAll(saved);
         }
 
         updateHistoryDisplay();
@@ -1294,25 +1254,13 @@ public class MainActivity extends AppCompatActivity {
 
         String safeSymbol =
                 symbol
-                        .replace(
-                                "/",
-                                "_"
-                        )
-                        .replace(
-                                " ",
-                                "_"
-                        );
+                        .replace("/", "_")
+                        .replace(" ", "_");
 
         String safeTimeframe =
                 selectedTimeframe
-                        .replace(
-                                "/",
-                                "_"
-                        )
-                        .replace(
-                                " ",
-                                "_"
-                        );
+                        .replace("/", "_")
+                        .replace(" ", "_");
 
         return PREF_CHART_CACHE_PREFIX +
                 safeSymbol +
@@ -1326,25 +1274,13 @@ public class MainActivity extends AppCompatActivity {
 
         String safeSymbol =
                 symbol
-                        .replace(
-                                "/",
-                                "_"
-                        )
-                        .replace(
-                                " ",
-                                "_"
-                        );
+                        .replace("/", "_")
+                        .replace(" ", "_");
 
         String safeTimeframe =
                 selectedTimeframe
-                        .replace(
-                                "/",
-                                "_"
-                        )
-                        .replace(
-                                " ",
-                                "_"
-                        );
+                        .replace("/", "_")
+                        .replace(" ", "_");
 
         return PREF_CHART_CACHE_TIME_PREFIX +
                 safeSymbol +
@@ -1368,8 +1304,8 @@ public class MainActivity extends AppCompatActivity {
             int start =
                     Math.max(
                             0,
-                            candles.size()
-                                    - MAX_CACHED_CANDLES
+                            candles.size() -
+                                    MAX_CACHED_CANDLES
                     );
 
             JSONArray array =
@@ -1385,29 +1321,12 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject object =
                         new JSONObject();
 
-                object.put(
-                        "open",
-                        c.open
-                );
+                object.put("open", c.open);
+                object.put("high", c.high);
+                object.put("low", c.low);
+                object.put("close", c.close);
 
-                object.put(
-                        "high",
-                        c.high
-                );
-
-                object.put(
-                        "low",
-                        c.low
-                );
-
-                object.put(
-                        "close",
-                        c.close
-                );
-
-                array.put(
-                        object
-                );
+                array.put(object);
             }
 
             preferences.edit()
@@ -1427,13 +1346,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadCachedCandleData() {
 
-        for (String symbol :
-                SYMBOLS) {
+        for (String symbol : SYMBOLS) {
 
             List<Candle> candles =
-                    loadCachedCandles(
-                            symbol
-                    );
+                    loadCachedCandles(symbol);
 
             candleData.put(
                     symbol,
@@ -1475,18 +1391,10 @@ public class MainActivity extends AppCompatActivity {
 
                 result.add(
                         new Candle(
-                                object.getDouble(
-                                        "open"
-                                ),
-                                object.getDouble(
-                                        "high"
-                                ),
-                                object.getDouble(
-                                        "low"
-                                ),
-                                object.getDouble(
-                                        "close"
-                                )
+                                object.getDouble("open"),
+                                object.getDouble("high"),
+                                object.getDouble("low"),
+                                object.getDouble("close")
                         )
                 );
             }
@@ -1547,11 +1455,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadsImagesAutomatically(true);
 
         chartWebView.setBackgroundColor(
-                Color.rgb(
-                        11,
-                        15,
-                        20
-                )
+                Color.rgb(11, 15, 20)
         );
 
         chartWebView.setWebViewClient(
@@ -1589,6 +1493,7 @@ public class MainActivity extends AppCompatActivity {
         return "<!DOCTYPE html>" +
                 "<html>" +
                 "<head>" +
+
                 "<meta name='viewport' " +
                 "content='width=device-width, initial-scale=1.0'>" +
 
@@ -1712,6 +1617,7 @@ public class MainActivity extends AppCompatActivity {
                 "borderDownColor:'#EA3943'," +
                 "wickUpColor:'#16C784'," +
                 "wickDownColor:'#EA3943'" +
+
                 "});" +
 
                 "}else if(chart.addCandlestickSeries){" +
@@ -1744,9 +1650,12 @@ public class MainActivity extends AppCompatActivity {
                 "if(!candleSeries) return;" +
 
                 "for(var i=0;i<priceLines.length;i++){" +
+
                 "try{" +
-                "candleSeries.removePriceLine(priceLines[i]);" +
+                "candleSeries.removePriceLine(" +
+                "priceLines[i]);" +
                 "}catch(e){}" +
+
                 "}" +
 
                 "priceLines=[];" +
@@ -1758,15 +1667,18 @@ public class MainActivity extends AppCompatActivity {
                 "if(!candleSeries || price<=0) return;" +
 
                 "var line=candleSeries.createPriceLine({" +
+
                 "price:price," +
                 "color:color," +
                 "lineWidth:1," +
                 "lineStyle:2," +
                 "axisLabelVisible:true," +
                 "title:title" +
+
                 "});" +
 
                 "priceLines.push(line);" +
+
                 "}" +
 
                 "function setChartData(" +
@@ -1791,16 +1703,6 @@ public class MainActivity extends AppCompatActivity {
                 "addPriceLine(tp1,'TP1','#16C784');" +
                 "addPriceLine(tp2,'TP2','#16C784');" +
                 "addPriceLine(tp3,'TP3','#16C784');" +
-
-                "if(ema20){" +
-                "try{chart.removeSeries(ema20);}catch(e){}" +
-                "ema20=null;" +
-                "}" +
-
-                "if(ema50){" +
-                "try{chart.removeSeries(ema50);}catch(e){}" +
-                "ema50=null;" +
-                "}" +
 
                 "chart.timeScale().fitContent();" +
 
@@ -1831,7 +1733,9 @@ public class MainActivity extends AppCompatActivity {
                 "for(var j=period;j<data.length;j++){" +
 
                 "var close=Number(data[j].close);" +
-                "var current=((close-previous)*multiplier)+previous;" +
+
+                "var current=" +
+                "((close-previous)*multiplier)+previous;" +
 
                 "result.push({" +
                 "time:data[j].time," +
@@ -1839,68 +1743,42 @@ public class MainActivity extends AppCompatActivity {
                 "});" +
 
                 "previous=current;" +
+
                 "}" +
 
                 "return result;" +
-                "}" +
-
-                "function showEMA(period){" +
-
-                "if(!candleSeries) return;" +
-
-                "var data=candleSeries.data ? " +
-                "candleSeries.data() : [];" +
-
-                "if(!data || data.length<period){" +
-                "setStatus('Not enough candles for EMA '+period);" +
-                "return;" +
-                "}" +
-
-                "var emaData=calculateEMA(data,period);" +
-
-                "var series=null;" +
-
-                "if(chart.addSeries && " +
-                "LightweightCharts.LineSeries){" +
-
-                "series=chart.addSeries(" +
-                "LightweightCharts.LineSeries,{" +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:false" +
-                "});" +
-
-                "}else if(chart.addLineSeries){" +
-
-                "series=chart.addLineSeries({" +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:false" +
-                "});" +
 
                 "}" +
 
-                "if(!series){" +
-                "setStatus('Indicator unavailable');" +
-                "return;" +
+                "function getCurrentData(){" +
+
+                "if(!candleSeries) return [];" +
+
+                "try{" +
+                "return candleSeries.data();" +
+                "}catch(e){" +
+                "return [];" +
                 "}" +
 
-                "series.setData(emaData);" +
-
-                "return series;" +
                 "}" +
 
                 "function showEMA20(){" +
 
                 "if(ema20){" +
-                "try{chart.removeSeries(ema20);}catch(e){}" +
+
+                "try{" +
+                "chart.removeSeries(ema20);" +
+                "}catch(e){}" +
+
                 "ema20=null;" +
+
                 "setStatus('EMA 20 OFF');" +
+
                 "return;" +
+
                 "}" +
 
                 "var data=getCurrentData();" +
-
                 "var values=calculateEMA(data,20);" +
 
                 "if(!values.length){" +
@@ -1908,7 +1786,8 @@ public class MainActivity extends AppCompatActivity {
                 "return;" +
                 "}" +
 
-                "if(chart.addSeries && LightweightCharts.LineSeries){" +
+                "if(chart.addSeries && " +
+                "LightweightCharts.LineSeries){" +
 
                 "ema20=chart.addSeries(" +
                 "LightweightCharts.LineSeries,{" +
@@ -1941,14 +1820,20 @@ public class MainActivity extends AppCompatActivity {
                 "function showEMA50(){" +
 
                 "if(ema50){" +
-                "try{chart.removeSeries(ema50);}catch(e){}" +
+
+                "try{" +
+                "chart.removeSeries(ema50);" +
+                "}catch(e){}" +
+
                 "ema50=null;" +
+
                 "setStatus('EMA 50 OFF');" +
+
                 "return;" +
+
                 "}" +
 
                 "var data=getCurrentData();" +
-
                 "var values=calculateEMA(data,50);" +
 
                 "if(!values.length){" +
@@ -1956,7 +1841,8 @@ public class MainActivity extends AppCompatActivity {
                 "return;" +
                 "}" +
 
-                "if(chart.addSeries && LightweightCharts.LineSeries){" +
+                "if(chart.addSeries && " +
+                "LightweightCharts.LineSeries){" +
 
                 "ema50=chart.addSeries(" +
                 "LightweightCharts.LineSeries,{" +
@@ -1982,18 +1868,6 @@ public class MainActivity extends AppCompatActivity {
                 "if(ema50){" +
                 "ema50.setData(values);" +
                 "setStatus('EMA 50 ON');" +
-                "}" +
-
-                "}" +
-
-                "function getCurrentData(){" +
-
-                "if(!candleSeries) return [];" +
-
-                "try{" +
-                "return candleSeries.data();" +
-                "}catch(e){" +
-                "return [];" +
                 "}" +
 
                 "}" +
@@ -2029,13 +1903,15 @@ public class MainActivity extends AppCompatActivity {
 
                 "drawingMode=true;" +
 
-                "var layer=document.getElementById('drawLayer');" +
+                "var layer=" +
+                "document.getElementById('drawLayer');" +
 
                 "layer.style.pointerEvents='auto';" +
-
                 "layer.style.cursor='crosshair';" +
 
-                "setStatus('DRAW MODE • TAP CHART FOR LEVEL');" +
+                "setStatus(" +
+                "'DRAW MODE • TAP CHART FOR LEVEL'" +
+                ");" +
 
                 "}" +
 
@@ -2043,10 +1919,10 @@ public class MainActivity extends AppCompatActivity {
 
                 "drawingMode=false;" +
 
-                "var layer=document.getElementById('drawLayer');" +
+                "var layer=" +
+                "document.getElementById('drawLayer');" +
 
                 "layer.style.pointerEvents='none';" +
-
                 "layer.style.cursor='default';" +
 
                 "setStatus('Drawing mode OFF');" +
@@ -2061,30 +1937,44 @@ public class MainActivity extends AppCompatActivity {
 
                 "}" +
 
-                "document.addEventListener('DOMContentLoaded',function(){" +
+                "document.addEventListener(" +
+                "'DOMContentLoaded',function(){" +
 
-                "var layer=document.getElementById('drawLayer');" +
+                "var layer=" +
+                "document.getElementById('drawLayer');" +
 
-                "layer.addEventListener('click',function(event){" +
+                "layer.addEventListener(" +
+                "'click',function(event){" +
 
                 "if(!drawingMode || !candleSeries) return;" +
 
-                "var rect=layer.getBoundingClientRect();" +
+                "var rect=" +
+                "layer.getBoundingClientRect();" +
 
                 "var y=event.clientY-rect.top;" +
 
                 "try{" +
 
-                "var price=candleSeries.coordinateToPrice(y);" +
+                "var price=" +
+                "candleSeries.coordinateToPrice(y);" +
 
                 "if(price!==null && price>0){" +
 
-                "addPriceLine(price,'LEVEL','#FFFFFF');" +
-                "setStatus('LEVEL '+price.toFixed(5));" +
+                "addPriceLine(" +
+                "price,'LEVEL','#FFFFFF');" +
+
+                "setStatus(" +
+                "'LEVEL '+price.toFixed(5)" +
+                ");" +
+
+                "disableDrawing();" +
+
                 "}" +
 
                 "}catch(e){" +
+
                 "setStatus('Unable to draw level');" +
+
                 "}" +
 
                 "});" +
@@ -2105,6 +1995,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (!chartReady ||
                 chartWebView == null) {
+
             return;
         }
 
@@ -2117,9 +2008,7 @@ public class MainActivity extends AppCompatActivity {
         updateChartToolbarText();
 
         List<Candle> candles =
-                candleData.get(
-                        chartSymbol
-                );
+                candleData.get(chartSymbol);
 
         if (candles == null ||
                 candles.isEmpty()) {
@@ -2168,33 +2057,16 @@ public class MainActivity extends AppCompatActivity {
                                         intervalSeconds)
                 );
 
-                item.put(
-                        "open",
-                        candle.open
-                );
-
-                item.put(
-                        "high",
-                        candle.high
-                );
-
-                item.put(
-                        "low",
-                        candle.low
-                );
-
-                item.put(
-                        "close",
-                        candle.close
-                );
+                item.put("open", candle.open);
+                item.put("high", candle.high);
+                item.put("low", candle.low);
+                item.put("close", candle.close);
 
                 array.put(item);
             }
 
             SignalResult result =
-                    currentSignals.get(
-                            chartSymbol
-                    );
+                    currentSignals.get(chartSymbol);
 
             double entry = 0;
             double sl = 0;
@@ -2203,12 +2075,8 @@ public class MainActivity extends AppCompatActivity {
             double tp3 = 0;
 
             if (result != null &&
-                    ("BUY".equals(
-                            result.action
-                    ) ||
-                     "SELL".equals(
-                             result.action
-                     ))) {
+                    ("BUY".equals(result.action) ||
+                     "SELL".equals(result.action))) {
 
                 entry = result.entry;
                 sl = result.sl;
@@ -2232,9 +2100,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
 
                 String cachedTime =
-                        formatCachedTime(
-                                cachedAt
-                        );
+                        formatCachedTime(cachedAt);
 
                 if (cachedTime.isEmpty()) {
 
@@ -2347,13 +2213,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        for (String symbol :
-                SYMBOLS) {
+        for (String symbol : SYMBOLS) {
 
-            if (liveClients.containsKey(
-                    symbol
-            )) {
-
+            if (liveClients.containsKey(symbol)) {
                 continue;
             }
 
@@ -2393,13 +2255,10 @@ public class MainActivity extends AppCompatActivity {
         SignalResult best = null;
         String bestSymbol = null;
 
-        for (String symbol :
-                SYMBOLS) {
+        for (String symbol : SYMBOLS) {
 
             SignalResult result =
-                    currentSignals.get(
-                            symbol
-                    );
+                    currentSignals.get(symbol);
 
             if (result == null) {
                 continue;
@@ -2417,7 +2276,9 @@ public class MainActivity extends AppCompatActivity {
         if (best == null) {
 
             if (bestSignal != null) {
+
                 bestSignal.setText("WAIT");
+
                 bestSignal.setTextColor(
                         Color.LTGRAY
                 );
@@ -2439,17 +2300,13 @@ public class MainActivity extends AppCompatActivity {
                     best.action
             );
 
-            if ("BUY".equals(
-                    best.action
-            )) {
+            if ("BUY".equals(best.action)) {
 
                 bestSignal.setTextColor(
                         Color.GREEN
                 );
 
-            } else if ("SELL".equals(
-                    best.action
-            )) {
+            } else if ("SELL".equals(best.action)) {
 
                 bestSignal.setTextColor(
                         Color.RED
@@ -2468,9 +2325,7 @@ public class MainActivity extends AppCompatActivity {
             StringBuilder details =
                     new StringBuilder();
 
-            details.append(
-                    bestSymbol
-            );
+            details.append(bestSymbol);
 
             details.append(
                     "\nTimeframe: "
@@ -2490,20 +2345,15 @@ public class MainActivity extends AppCompatActivity {
 
             details.append("%");
 
-            if ("BUY".equals(
-                    best.action
-            ) || "SELL".equals(
-                    best.action
-            )) {
+            if ("BUY".equals(best.action) ||
+                    "SELL".equals(best.action)) {
 
                 details.append(
                         "\nEntry: "
                 );
 
                 details.append(
-                        formatPrice(
-                                best.entry
-                        )
+                        formatPrice(best.entry)
                 );
 
                 details.append(
@@ -2511,9 +2361,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(
-                                best.sl
-                        )
+                        formatPrice(best.sl)
                 );
 
                 details.append(
@@ -2521,9 +2369,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(
-                                best.tp1
-                        )
+                        formatPrice(best.tp1)
                 );
 
                 details.append(
@@ -2531,9 +2377,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(
-                                best.tp2
-                        )
+                        formatPrice(best.tp2)
                 );
 
                 details.append(
@@ -2541,9 +2385,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
                 details.append(
-                        formatPrice(
-                                best.tp3
-                        )
+                        formatPrice(best.tp3)
                 );
 
             } else {
@@ -2597,9 +2439,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (bestSymbol != null &&
-                "ALL".equals(
-                        selectedMarket
-                )) {
+                "ALL".equals(selectedMarket)) {
 
             chartSymbol =
                     bestSymbol;
@@ -2645,8 +2485,7 @@ public class MainActivity extends AppCompatActivity {
         StringBuilder builder =
                 new StringBuilder();
 
-        for (String item :
-                savedHistory) {
+        for (String item : savedHistory) {
 
             builder.append(item);
             builder.append("\n\n");
@@ -2660,9 +2499,7 @@ public class MainActivity extends AppCompatActivity {
     private void copyCurrentSignal() {
 
         SignalResult result =
-                currentSignals.get(
-                        chartSymbol
-                );
+                currentSignals.get(chartSymbol);
 
         if (result == null) {
 
@@ -2685,33 +2522,20 @@ public class MainActivity extends AppCompatActivity {
                         result.confidence +
                         "%";
 
-        if ("BUY".equals(
-                result.action
-        ) || "SELL".equals(
-                result.action
-        )) {
+        if ("BUY".equals(result.action) ||
+                "SELL".equals(result.action)) {
 
             text +=
                     "\nEntry: " +
-                            formatPrice(
-                                    result.entry
-                            ) +
+                            formatPrice(result.entry) +
                             "\nStop Loss: " +
-                            formatPrice(
-                                    result.sl
-                            ) +
+                            formatPrice(result.sl) +
                             "\nTP1: " +
-                            formatPrice(
-                                    result.tp1
-                            ) +
+                            formatPrice(result.tp1) +
                             "\nTP2: " +
-                            formatPrice(
-                                    result.tp2
-                            ) +
+                            formatPrice(result.tp2) +
                             "\nTP3: " +
-                            formatPrice(
-                                    result.tp3
-                            );
+                            formatPrice(result.tp3);
         }
 
         ClipboardManager clipboard =
@@ -2875,20 +2699,18 @@ public class MainActivity extends AppCompatActivity {
 
         chartFullscreen = true;
 
-        if (mainContent != null) {
+        for (int i = 0;
+             i < mainContent.getChildCount();
+             i++) {
 
-            for (int i = 0;
-                 i < mainContent.getChildCount();
-                 i++) {
+            View child =
+                    mainContent.getChildAt(i);
 
-                View child =
-                        mainContent.getChildAt(i);
+            if (child != chartWorkspace) {
 
-                if (child != chartWorkspace) {
-                    child.setVisibility(
-                            View.GONE
-                    );
-                }
+                child.setVisibility(
+                        View.GONE
+                );
             }
         }
 
@@ -2911,7 +2733,10 @@ public class MainActivity extends AppCompatActivity {
         if (mainScroll != null) {
 
             mainScroll.setFillViewport(true);
-            mainScroll.setVerticalScrollBarEnabled(false);
+
+            mainScroll.setVerticalScrollBarEnabled(
+                    false
+            );
         }
 
         getWindow().setFlags(
@@ -2922,7 +2747,8 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.KITKAT) {
 
-            getWindow().getDecorView()
+            getWindow()
+                    .getDecorView()
                     .setSystemUiVisibility(
                             View.SYSTEM_UI_FLAG_FULLSCREEN |
                             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
@@ -2934,10 +2760,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (fullscreenButton != null) {
+
             fullscreenButton.setText("EXIT");
         }
 
         if (chartStatus != null) {
+
             chartStatus.setText(
                     "FULL-SCREEN CHART • " +
                             chartSymbol +
@@ -3000,13 +2828,15 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.KITKAT) {
 
-            getWindow().getDecorView()
+            getWindow()
+                    .getDecorView()
                     .setSystemUiVisibility(
                             View.SYSTEM_UI_FLAG_VISIBLE
                     );
         }
 
         if (fullscreenButton != null) {
+
             fullscreenButton.setText("FULL");
         }
 
@@ -3020,9 +2850,7 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    private int dpToPx(
-            int dp
-    ) {
+    private int dpToPx(int dp) {
 
         float density =
                 getResources()
@@ -3099,6 +2927,7 @@ public class MainActivity extends AppCompatActivity {
         updateChart();
 
         if (isForexWeekdayOpen()) {
+
             startLivePriceConnections();
         }
     }
