@@ -970,13 +970,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getApiKey() {
+    String buildKey = BuildConfig.TWELVE_DATA_API_KEY;
 
-        return preferences.getString(
-                "api_key",
-                ""
-        );
+    if (buildKey != null && !buildKey.trim().isEmpty()) {
+        return buildKey.trim();
     }
 
+    return preferences.getString("api_key", "").trim();
+  }
+ 
     /*
      * =========================================================
      * CHART-ONLY TWELVE DATA REQUEST
