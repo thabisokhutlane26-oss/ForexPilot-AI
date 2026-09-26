@@ -31,10 +31,22 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x gradlew
 
+      - name: Verify Twelve Data secret
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+        run: |
+          if [ -z "$TWELVE_DATA_API_KEY" ]; then
+            echo "ERROR: TWELVE_DATA_API_KEY is EMPTY"
+            exit 1
+          else
+            echo "OK: TWELVE_DATA_API_KEY is present"
+            echo "Key length: ${#TWELVE_DATA_API_KEY}"
+          fi
+
       - name: Build APK
         run: |
           ./gradlew --no-daemon --stacktrace assembleDebug \
-            -PTWELVE_DATA_API_KEY="${{ secrets.TWELVE_DATA }}"
+            -PTWELVE_DATA_API_KEY="${{ secrets.TWELVE_DATA_API_KEY }}"
 
       - name: Check APK
         run: test -f app/build/outputs/apk/debug/app-debug.apk
