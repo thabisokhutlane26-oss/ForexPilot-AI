@@ -40,21 +40,21 @@ public class ForexMonitorService extends Service {
 
     private static final int FOREGROUND_ID = 9001;
 
+    /*
+     * Check one pair every 15 minutes.
+     *
+     * Five pairs are rotated, which greatly reduces
+     * unnecessary Twelve Data requests.
+     */
     private static final long SCAN_INTERVAL_SECONDS =
             15 * 60;
 
-    /*
-     * Must match MainActivity.
-     */
     private static final String PREFS_NAME =
             "ForexPilotSettings";
 
     private static final String PREF_SELECTED_TIMEFRAME =
             "selected_timeframe";
 
-    /*
-     * Maximum NEW signals per day.
-     */
     private static final int MAX_DAILY_SIGNALS = 2;
 
     private static final String PREF_SIGNAL_DATE =
@@ -62,6 +62,12 @@ public class ForexMonitorService extends Service {
 
     private static final String PREF_DAILY_SIGNAL_COUNT =
             "daily_signal_count";
+
+    /*
+     * Stores which pair should be scanned next.
+     */
+    private static final String PREF_SCAN_INDEX =
+            "background_scan_index";
 
     private static final String[] SYMBOLS = {
             "XAU/USD",
@@ -127,7 +133,20 @@ public class ForexMonitorService extends Service {
         }
 
         httpClient =
-                new OkHttpClient();
+                new OkHttpClient.Builder()
+                        .connectTimeout(
+                                15,
+                                TimeUnit.SECONDS
+                        )
+                        .readTimeout(
+                                20,
+                                TimeUnit.SECONDS
+                        )
+                        .writeTimeout(
+                                15,
+                                TimeUnit.SECONDS
+                        )
+                        .build();
 
         scheduler =
                 Executors
@@ -149,20 +168,17 @@ public class ForexMonitorService extends Service {
     private void scanMarkets() {
 
         /*
-         * Never create NEW signals while market
-         * is closed.
+         * Never generate a new signal while the
+         * forex market is closed.
          */
         if (!isSignalGenerationAllowed()) {
             return;
         }
 
-        /*
-         * Reset daily counter first.
-         */
         resetDailyCounterIfNeeded();
 
         /*
-         * Maximum two signals per day.
+         * Maximum two new signals per day.
          */
         if (getDailySignalCount()
                 >= MAX_DAILY_SIGNALS) {
@@ -195,130 +211,171 @@ public class ForexMonitorService extends Service {
             selectedTimeframe = "5min";
         }
 
-        for (String symbol : SYMBOLS) {
+        /*
+         * ====================================================
+         * ROTATING PAIR SCANNER
+         * ====================================================
+         *
+         * Instead of:
+         *
+         * XAU/USD
+         * EUR/USD
+         * GBP/USD
+         * USD/JPY
+         * NZD/USD
+         *
+         * on EVERY scan, we check only one pair and move
+         * to the next pair on the next scan.
+         *
+         * This dramatically reduces API usage.
+         * ====================================================
+         */
 
-            /*
-             * Market may close while scanning.
-             */
-            if (!isSignalGenerationAllowed()) {
-                return;
-            }
-
-            /*
-             * Stop after two signals.
-             */
-            if (getDailySignalCount()
-                    >= MAX_DAILY_SIGNALS) {
-                return;
-            }
-
-            try {
-
-                JSONArray candles =
-                        getCandles(
-                                symbol,
-                                selectedTimeframe,
-                                apiKey
-                        );
-
-                if (candles == null
-                        || candles.length() < 60) {
-                    continue;
-                }
-
-                List<Candle> candleList =
-                        new ArrayList<>();
-
-                for (int i = 0;
-                     i < candles.length();
-                     i++) {
-
-                    JSONObject obj =
-                            candles.getJSONObject(i);
-
-                    double open =
-                            Double.parseDouble(
-                                    obj.getString("open")
-                            );
-
-                    double high =
-                            Double.parseDouble(
-                                    obj.getString("high")
-                            );
-
-                    double low =
-                            Double.parseDouble(
-                                    obj.getString("low")
-                            );
-
-                    double close =
-                            Double.parseDouble(
-                                    obj.getString("close")
-                            );
-
-                    /*
-                     * Candle has exactly four
-                     * constructor parameters.
-                     */
-                    candleList.add(
-                            new Candle(
-                                    open,
-                                    high,
-                                    low,
-                                    close
-                            )
-                    );
-                }
-
-                if (candleList.size() < 60) {
-                    continue;
-                }
-
-                Candle latest =
-                        candleList.get(
-                                candleList.size() - 1
-                        );
-
-                double livePrice =
-                        latest.close;
-
-                SignalResult result =
-                        SignalEngine.analyze(
-                                candleList,
-                                livePrice
-                        );
-
-                if (result == null) {
-                    continue;
-                }
-
-                /*
-                 * SignalResult uses "action".
-                 */
-                if (!"BUY".equals(
-                        result.action)
-                        && !"SELL".equals(
-                        result.action)) {
-                    continue;
-                }
-
-                if (result.entry <= 0) {
-                    continue;
-                }
-
-                notifyIfNew(
-                        symbol,
-                        selectedTimeframe,
-                        result
+        int scanIndex =
+                prefs.getInt(
+                        PREF_SCAN_INDEX,
+                        0
                 );
 
-            } catch (Exception ignored) {
+        if (scanIndex < 0
+                || scanIndex >= SYMBOLS.length) {
 
-                /*
-                 * One failed symbol must not
-                 * stop the scanner.
-                 */
+            scanIndex = 0;
+        }
+
+        String symbol =
+                SYMBOLS[scanIndex];
+
+        int nextIndex =
+                (scanIndex + 1)
+                        % SYMBOLS.length;
+
+        prefs.edit()
+                .putInt(
+                        PREF_SCAN_INDEX,
+                        nextIndex
+                )
+                .apply();
+
+        /*
+         * Check the market again immediately before
+         * making the API request.
+         */
+        if (!isSignalGenerationAllowed()) {
+            return;
+        }
+
+        if (getDailySignalCount()
+                >= MAX_DAILY_SIGNALS) {
+            return;
+        }
+
+        try {
+
+            JSONArray candles =
+                    getCandles(
+                            symbol,
+                            selectedTimeframe,
+                            apiKey
+                    );
+
+            if (candles == null
+                    || candles.length() < 60) {
+                return;
             }
+
+            List<Candle> candleList =
+                    new ArrayList<>();
+
+            for (int i = 0;
+                 i < candles.length();
+                 i++) {
+
+                JSONObject obj =
+                        candles.getJSONObject(i);
+
+                double open =
+                        Double.parseDouble(
+                                obj.getString("open")
+                        );
+
+                double high =
+                        Double.parseDouble(
+                                obj.getString("high")
+                        );
+
+                double low =
+                        Double.parseDouble(
+                                obj.getString("low")
+                        );
+
+                double close =
+                        Double.parseDouble(
+                                obj.getString("close")
+                        );
+
+                if (open <= 0
+                        || high <= 0
+                        || low <= 0
+                        || close <= 0) {
+                    continue;
+                }
+
+                candleList.add(
+                        new Candle(
+                                open,
+                                high,
+                                low,
+                                close
+                        )
+                );
+            }
+
+            if (candleList.size() < 60) {
+                return;
+            }
+
+            Candle latest =
+                    candleList.get(
+                            candleList.size() - 1
+                    );
+
+            double livePrice =
+                    latest.close;
+
+            SignalResult result =
+                    SignalEngine.analyze(
+                            candleList,
+                            livePrice
+                    );
+
+            if (result == null) {
+                return;
+            }
+
+            if (!"BUY".equals(
+                    result.action)
+                    && !"SELL".equals(
+                    result.action)) {
+                return;
+            }
+
+            if (result.entry <= 0) {
+                return;
+            }
+
+            notifyIfNew(
+                    symbol,
+                    selectedTimeframe,
+                    result
+            );
+
+        } catch (Exception ignored) {
+
+            /*
+             * A failed request must not stop
+             * the background service.
+             */
         }
     }
 
@@ -332,16 +389,10 @@ public class ForexMonitorService extends Service {
         Instant now =
                 Instant.now();
 
-        /*
-         * Use existing MarketClock.
-         */
         if (!MarketClock.isForexOpen(now)) {
             return false;
         }
 
-        /*
-         * Explicit Monday-Friday requirement.
-         */
         ZonedDateTime newYork =
                 now.atZone(
                         ZoneId.of(
@@ -352,6 +403,10 @@ public class ForexMonitorService extends Service {
         DayOfWeek day =
                 newYork.getDayOfWeek();
 
+        /*
+         * ForexPilot AI only creates NEW signals
+         * Monday through Friday.
+         */
         if (day == DayOfWeek.SATURDAY
                 || day == DayOfWeek.SUNDAY) {
 
@@ -475,12 +530,19 @@ public class ForexMonitorService extends Service {
                         StandardCharsets.UTF_8.toString()
                 );
 
+        String encodedKey =
+                URLEncoder.encode(
+                        apiKey,
+                        StandardCharsets.UTF_8.toString()
+                );
+
         String url =
                 "https://api.twelvedata.com/time_series"
                         + "?symbol=" + encodedSymbol
                         + "&interval=" + interval
                         + "&outputsize=100"
-                        + "&apikey=" + apiKey;
+                        + "&order=asc"
+                        + "&apikey=" + encodedKey;
 
         Request request =
                 new Request.Builder()
@@ -495,26 +557,43 @@ public class ForexMonitorService extends Service {
 
             if (!response.isSuccessful()
                     || response.body() == null) {
+
                 return null;
             }
 
             String body =
                     response.body().string();
 
+            if (body == null
+                    || body.trim().isEmpty()) {
+
+                return null;
+            }
+
             JSONObject json =
                     new JSONObject(body);
 
+            /*
+             * Twelve Data can return an API error
+             * inside a successful HTTP response.
+             */
             if (!json.has("values")) {
                 return null;
             }
 
             JSONArray values =
-                    json.getJSONArray("values");
+                    json.getJSONArray(
+                            "values"
+                    );
+
+            if (values.length() == 0) {
+                return null;
+            }
 
             /*
-             * Twelve Data returns newest first.
+             * Twelve Data normally returns newest first.
              *
-             * SignalEngine receives oldest -> newest.
+             * SignalEngine expects oldest -> newest.
              */
             JSONArray chronological =
                     new JSONArray();
@@ -543,31 +622,15 @@ public class ForexMonitorService extends Service {
             String timeframe,
             SignalResult result) {
 
-        /*
-         * Never notify while closed.
-         */
         if (!isSignalGenerationAllowed()) {
             return;
         }
 
-        /*
-         * Never exceed two signals.
-         */
         if (getDailySignalCount()
                 >= MAX_DAILY_SIGNALS) {
             return;
         }
 
-        /*
-         * SignalResult actual field names:
-         *
-         * action
-         * entry
-         * sl
-         * tp1
-         * tp2
-         * tp3
-         */
         String fingerprint =
                 symbol
                         + "|"
