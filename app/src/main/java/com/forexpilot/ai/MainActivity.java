@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -48,10 +49,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String PREFS_NAME = "ForexPilotSettings";
     private static final String PREF_SELECTED_TIMEFRAME = "selected_timeframe";
-
     private static final String PREF_SIGNAL_DATE = "signal_date";
     private static final String PREF_DAILY_SIGNAL_COUNT = "daily_signal_count";
-
     private static final String PREF_CHART_CACHE_PREFIX = "chart_cache_";
     private static final String PREF_CHART_CACHE_TIME_PREFIX = "chart_cache_time_";
 
@@ -148,7 +147,6 @@ public class MainActivity extends AppCompatActivity {
             new Runnable() {
                 @Override
                 public void run() {
-
                     refreshSignals();
 
                     handler.postDelayed(
@@ -160,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
 
         setContentView(
@@ -186,6 +183,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         bindViews();
+        removePersonalBranding();
         setupChart();
         setupButtons();
         loadActiveSignals();
@@ -257,13 +255,12 @@ public class MainActivity extends AppCompatActivity {
 
             normalChartHeightDp = 390;
 
-            android.view.ViewParent parent =
-                    chartContainer.getParent();
+            ViewParentHolder holder =
+                    new ViewParentHolder(chartContainer);
 
-            if (parent instanceof LinearLayout) {
-                chartWorkspace =
-                        (LinearLayout) parent;
-            }
+            chartWorkspace =
+                    holder.getLinearParent();
+
         }
 
         if (chartWorkspace != null) {
@@ -286,6 +283,82 @@ public class MainActivity extends AppCompatActivity {
                 mainScroll =
                         (ScrollView) parent;
             }
+        }
+    }
+
+    /*
+     * Removes personal branding from the current XML without
+     * requiring an XML change.
+     */
+    private void removePersonalBranding() {
+
+        View root =
+                findViewById(android.R.id.content);
+
+        removeBrandingRecursive(root);
+    }
+
+    private void removeBrandingRecursive(View view) {
+
+        if (view instanceof TextView) {
+
+            TextView textView =
+                    (TextView) view;
+
+            CharSequence value =
+                    textView.getText();
+
+            if (value != null) {
+
+                String text =
+                        value.toString()
+                                .toLowerCase(Locale.US);
+
+                if (text.contains("made by") ||
+                        text.contains("thabiso") ||
+                        text.contains("khutlane")) {
+
+                    textView.setVisibility(
+                            View.GONE
+                    );
+                }
+            }
+        }
+
+        if (view instanceof ViewGroup) {
+
+            ViewGroup group =
+                    (ViewGroup) view;
+
+            for (int i = 0;
+                 i < group.getChildCount();
+                 i++) {
+
+                removeBrandingRecursive(
+                        group.getChildAt(i)
+                );
+            }
+        }
+    }
+
+    private static class ViewParentHolder {
+
+        private final View view;
+
+        ViewParentHolder(View view) {
+            this.view = view;
+        }
+
+        LinearLayout getLinearParent() {
+
+            android.view.ViewParent parent =
+                    view.getParent();
+
+            if (parent instanceof LinearLayout) {
+                return (LinearLayout) parent;
+            }
+
+            return null;
         }
     }
 
@@ -575,11 +648,8 @@ public class MainActivity extends AppCompatActivity {
         DayOfWeek day =
                 ny.getDayOfWeek();
 
-        if (day == DayOfWeek.SATURDAY) {
-            return false;
-        }
-
-        if (day == DayOfWeek.SUNDAY) {
+        if (day == DayOfWeek.SATURDAY ||
+                day == DayOfWeek.SUNDAY) {
             return false;
         }
 
@@ -824,6 +894,7 @@ public class MainActivity extends AppCompatActivity {
                 );
             }
 
+            updateChart();
             return;
         }
 
@@ -962,6 +1033,26 @@ public class MainActivity extends AppCompatActivity {
                                     message
                     );
                 }
+
+                if (chartWebView != null &&
+                        chartReady) {
+
+                    String safe =
+                            message == null
+                                    ? "UNKNOWN DATA ERROR"
+                                    : message
+                                    .replace(
+                                            "'",
+                                            "\\'"
+                                    );
+
+                    chartWebView.evaluateJavascript(
+                            "setChartMessage('DATA ERROR: " +
+                                    safe +
+                                    "');",
+                            null
+                    );
+                }
             });
         }
     }
@@ -1051,7 +1142,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (!"BUY".equals(result.action) &&
                 !"SELL".equals(result.action)) {
-
             return;
         }
 
@@ -1064,7 +1154,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (existing != null &&
                 existing.isOpen()) {
-
             return;
         }
 
@@ -1233,7 +1322,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (candles == null ||
                 candles.isEmpty()) {
-
             return;
         }
 
@@ -1286,12 +1374,9 @@ public class MainActivity extends AppCompatActivity {
 
         for (String symbol : SYMBOLS) {
 
-            List<Candle> candles =
-                    loadCachedCandles(symbol);
-
             candleData.put(
                     symbol,
-                    candles
+                    loadCachedCandles(symbol)
             );
         }
     }
@@ -1361,22 +1446,12 @@ public class MainActivity extends AppCompatActivity {
             return "";
         }
 
-        try {
-
-            SimpleDateFormat format =
-                    new SimpleDateFormat(
-                            "dd MMM yyyy HH:mm",
-                            Locale.US
-                    );
-
-            return format.format(
-                    new Date(millis)
-            );
-
-        } catch (Exception e) {
-
-            return "";
-        }
+        return new SimpleDateFormat(
+                "dd MMM yyyy HH:mm",
+                Locale.US
+        ).format(
+                new Date(millis)
+        );
     }
 
     private void setupChart() {
@@ -1391,10 +1466,15 @@ public class MainActivity extends AppCompatActivity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setLoadsImagesAutomatically(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
 
         chartWebView.setBackgroundColor(
                 Color.rgb(11, 15, 20)
         );
+
+        chartWebView.setVerticalScrollBarEnabled(false);
+        chartWebView.setHorizontalScrollBarEnabled(false);
 
         chartWebView.setWebViewClient(
                 new WebViewClient() {
@@ -1418,7 +1498,7 @@ public class MainActivity extends AppCompatActivity {
         );
 
         chartWebView.loadDataWithBaseURL(
-                "https://www.tradingview.com/",
+                null,
                 createChartHtml(),
                 "text/html",
                 "UTF-8",
@@ -1431,20 +1511,16 @@ public class MainActivity extends AppCompatActivity {
         return "<!DOCTYPE html>" +
                 "<html>" +
                 "<head>" +
-
-                "<meta name='viewport' " +
-                "content='width=device-width, initial-scale=1.0'>" +
+                "<meta name='viewport' content='width=device-width,initial-scale=1.0,user-scalable=no'>" +
 
                 "<style>" +
-
                 "html,body{" +
                 "margin:0;" +
                 "padding:0;" +
                 "width:100%;" +
                 "height:100%;" +
-                "background:#0B0F14;" +
                 "overflow:hidden;" +
-                "font-family:Arial,sans-serif;" +
+                "background:#0B0F14;" +
                 "}" +
 
                 "#root{" +
@@ -1458,99 +1534,79 @@ public class MainActivity extends AppCompatActivity {
                 "background:#0B0F14;" +
                 "}" +
 
-                "#mainChart{" +
+                "#chartArea{" +
                 "position:relative;" +
                 "width:100%;" +
                 "height:100%;" +
                 "min-height:180px;" +
+                "background:#0B0F14;" +
                 "}" +
 
-                "#indicatorPanel{" +
-                "display:none;" +
-                "position:relative;" +
-                "width:100%;" +
-                "height:28%;" +
-                "min-height:90px;" +
-                "border-top:1px solid #202936;" +
-                "}" +
-
-                "#indicatorTitle{" +
-                "position:absolute;" +
-                "top:4px;" +
-                "left:8px;" +
-                "z-index:20;" +
-                "font-size:10px;" +
-                "color:#AAB4C3;" +
-                "background:rgba(11,15,20,.86);" +
-                "padding:3px 6px;" +
-                "border-radius:3px;" +
-                "}" +
-
-                "#status{" +
-                "position:absolute;" +
-                "top:8px;" +
-                "left:10px;" +
-                "z-index:50;" +
-                "font-size:11px;" +
-                "color:#AAB4C3;" +
-                "background:rgba(11,15,20,.86);" +
-                "padding:4px 7px;" +
-                "border-radius:4px;" +
-                "}" +
-
-                "#drawLayer{" +
+                "#mainCanvas{" +
                 "position:absolute;" +
                 "left:0;" +
                 "top:0;" +
                 "width:100%;" +
-                "height:72%;" +
-                "z-index:40;" +
-                "pointer-events:none;" +
+                "height:100%;" +
+                "}" +
+
+                "#lowerCanvas{" +
+                "position:absolute;" +
+                "left:0;" +
+                "bottom:0;" +
+                "width:100%;" +
+                "height:28%;" +
+                "display:none;" +
+                "border-top:1px solid #27303B;" +
+                "}" +
+
+                "#status{" +
+                "position:absolute;" +
+                "left:8px;" +
+                "top:8px;" +
+                "z-index:20;" +
+                "padding:5px 8px;" +
+                "border-radius:4px;" +
+                "font-family:Arial,sans-serif;" +
+                "font-size:11px;" +
+                "color:#AEB8C5;" +
+                "background:rgba(11,15,20,.90);" +
+                "}" +
+
+                "#indicatorTitle{" +
+                "position:absolute;" +
+                "left:8px;" +
+                "bottom:4px;" +
+                "z-index:20;" +
+                "font-family:Arial,sans-serif;" +
+                "font-size:10px;" +
+                "color:#AEB8C5;" +
+                "background:rgba(11,15,20,.90);" +
+                "padding:3px 6px;" +
                 "}" +
 
                 "</style>" +
-
-                "<script src='" +
-                "https://unpkg.com/lightweight-charts/" +
-                "dist/lightweight-charts.standalone.production.js" +
-                "'></script>" +
-
                 "</head>" +
 
                 "<body>" +
 
                 "<div id='root'>" +
 
-                "<div id='mainChart'></div>" +
+                "<div id='chartArea'>" +
 
-                "<div id='indicatorPanel'>" +
+                "<canvas id='mainCanvas'></canvas>" +
+
+                "<canvas id='lowerCanvas'></canvas>" +
+
                 "<div id='indicatorTitle'></div>" +
-                "</div>" +
 
                 "</div>" +
 
-                "<div id='status'>Loading chart...</div>" +
+                "</div>" +
 
-                "<div id='drawLayer'></div>" +
+                "<div id='status'>Loading market chart...</div>" +
 
                 "<script>" +
-
-                "var chart=null;" +
-                "var indicatorChart=null;" +
-
-                "var candleSeries=null;" +
-
-                "var ema20=null;" +
-                "var ema50=null;" +
-                "var sma200=null;" +
-
-                "var upperBand=null;" +
-                "var middleBand=null;" +
-                "var lowerBand=null;" +
-
-                "var lowerSeries1=null;" +
-                "var lowerSeries2=null;" +
-                "var lowerHistogram=null;" +
 
                 "var currentData=[];" +
 
@@ -1565,149 +1621,83 @@ public class MainActivity extends AppCompatActivity {
                 "var lowerIndicator='NONE';" +
                 "var drawingMode=false;" +
 
-                "function setStatus(text){" +
-                "document.getElementById('status').innerText=text;" +
+                "var mainCanvas=null;" +
+                "var lowerCanvas=null;" +
+
+                "function setChartMessage(message){" +
+                "var s=document.getElementById('status');" +
+                "s.innerText=message;" +
                 "}" +
 
-                "function makeOptions(){" +
+                "function setStatus(message){" +
+                "setChartMessage(message);" +
+                "}" +
+
+                "function resizeCanvas(canvas){" +
+
+                "if(!canvas)return;" +
+
+                "var rect=canvas.getBoundingClientRect();" +
+
+                "var ratio=window.devicePixelRatio||1;" +
+
+                "canvas.width=Math.max(1,Math.floor(rect.width*ratio));" +
+                "canvas.height=Math.max(1,Math.floor(rect.height*ratio));" +
+
+                "var ctx=canvas.getContext('2d');" +
+
+                "ctx.setTransform(ratio,0,0,ratio,0,0);" +
+                "}" +
+
+                "function resizeAll(){" +
+
+                "resizeCanvas(mainCanvas);" +
+                "resizeCanvas(lowerCanvas);" +
+
+                "if(currentData.length>0){" +
+                "drawEverything();" +
+                "}" +
+                "}" +
+
+                "function priceRange(data){" +
+
+                "var high=-Infinity;" +
+                "var low=Infinity;" +
+
+                "for(var i=0;i<data.length;i++){" +
+
+                "high=Math.max(high,Number(data[i].high));" +
+                "low=Math.min(low,Number(data[i].low));" +
+
+                "}" +
+
+                "var spread=high-low;" +
+
+                "if(!isFinite(spread)||spread<=0){" +
+                "spread=Math.max(Math.abs(high)*0.001,0.0001);" +
+                "}" +
 
                 "return {" +
-
-                "layout:{" +
-                "background:{color:'#0B0F14'}," +
-                "textColor:'#B8C2D1'" +
-                "}," +
-
-                "grid:{" +
-                "vertLines:{color:'#18202B'}," +
-                "horzLines:{color:'#18202B'}" +
-                "}," +
-
-                "rightPriceScale:{" +
-                "borderColor:'#26303C'," +
-                "scaleMargins:{top:0.10,bottom:0.10}" +
-                "}," +
-
-                "timeScale:{" +
-                "borderColor:'#26303C'," +
-                "timeVisible:true," +
-                "secondsVisible:false" +
-                "}," +
-
-                "crosshair:{mode:1}" +
-
+                "high:high+spread*0.08," +
+                "low:low-spread*0.08" +
                 "};" +
                 "}" +
 
-                "function createLineSeries(c,options){" +
+                "function mapPrice(price,range,top,bottom){" +
 
-                "try{" +
+                "if(range.high===range.low)return bottom;" +
 
-                "if(c.addSeries && " +
-                "LightweightCharts.LineSeries){" +
-
-                "return c.addSeries(" +
-                "LightweightCharts.LineSeries," +
-                "options" +
-                ");" +
-
-                "}" +
-
-                "if(c.addLineSeries){" +
-                "return c.addLineSeries(options);" +
-                "}" +
-
-                "}catch(e){}" +
-
-                "return null;" +
-                "}" +
-
-                "function createHistogramSeries(c,options){" +
-
-                "try{" +
-
-                "if(c.addSeries && " +
-                "LightweightCharts.HistogramSeries){" +
-
-                "return c.addSeries(" +
-                "LightweightCharts.HistogramSeries," +
-                "options" +
-                ");" +
-                "}" +
-
-                "if(c.addHistogramSeries){" +
-                "return c.addHistogramSeries(options);" +
-                "}" +
-
-                "}catch(e){}" +
-
-                "return null;" +
-                "}" +
-
-                "function createCandleSeries(c){" +
-
-                "var options={" +
-                "upColor:'#16C784'," +
-                "downColor:'#EA3943'," +
-                "borderUpColor:'#16C784'," +
-                "borderDownColor:'#EA3943'," +
-                "wickUpColor:'#16C784'," +
-                "wickDownColor:'#EA3943'" +
-                "};" +
-
-                "try{" +
-
-                "if(c.addSeries && " +
-                "LightweightCharts.CandlestickSeries){" +
-
-                "return c.addSeries(" +
-                "LightweightCharts.CandlestickSeries," +
-                "options" +
-                ");" +
-                "}" +
-
-                "if(c.addCandlestickSeries){" +
-                "return c.addCandlestickSeries(options);" +
-                "}" +
-
-                "}catch(e){}" +
-
-                "return null;" +
-                "}" +
-
-                "function initChart(){" +
-
-                "if(typeof LightweightCharts==='undefined'){" +
-
-                "setStatus('CHART LIBRARY NOT AVAILABLE');" +
-                "return;" +
-                "}" +
-
-                "chart=" +
-                "LightweightCharts.createChart(" +
-                "document.getElementById('mainChart')," +
-                "makeOptions()" +
-                ");" +
-
-                "candleSeries=" +
-                "createCandleSeries(chart);" +
-
-                "indicatorChart=" +
-                "LightweightCharts.createChart(" +
-                "document.getElementById('indicatorPanel')," +
-                "makeOptions()" +
-                ");" +
-
-                "setStatus('Professional chart ready');" +
+                "return top+" +
+                "((range.high-price)/" +
+                "(range.high-range.low))*"+
+                "(bottom-top);" +
                 "}" +
 
                 "function calculateEMA(data,period){" +
 
                 "var result=[];" +
 
-                "if(!data || data.length<period){" +
-                "return result;" +
-                "}" +
+                "if(!data||data.length<period)return result;" +
 
                 "var multiplier=2/(period+1);" +
                 "var sum=0;" +
@@ -1719,7 +1709,7 @@ public class MainActivity extends AppCompatActivity {
                 "var previous=sum/period;" +
 
                 "result.push({" +
-                "time:data[period-1].time," +
+                "index:period-1," +
                 "value:previous" +
                 "});" +
 
@@ -1727,15 +1717,15 @@ public class MainActivity extends AppCompatActivity {
 
                 "var close=Number(data[j].close);" +
 
-                "var current=" +
-                "((close-previous)*multiplier)+previous;" +
+                "var value=((close-previous)*multiplier)+previous;" +
+
+                "previous=value;" +
 
                 "result.push({" +
-                "time:data[j].time," +
-                "value:current" +
+                "index:j," +
+                "value:value" +
                 "});" +
 
-                "previous=current;" +
                 "}" +
 
                 "return result;" +
@@ -1745,9 +1735,7 @@ public class MainActivity extends AppCompatActivity {
 
                 "var result=[];" +
 
-                "if(!data || data.length<period){" +
-                "return result;" +
-                "}" +
+                "if(!data||data.length<period)return result;" +
 
                 "for(var i=period-1;i<data.length;i++){" +
 
@@ -1758,7 +1746,7 @@ public class MainActivity extends AppCompatActivity {
                 "}" +
 
                 "result.push({" +
-                "time:data[i].time," +
+                "index:i," +
                 "value:sum/period" +
                 "});" +
 
@@ -1771,9 +1759,7 @@ public class MainActivity extends AppCompatActivity {
 
                 "var result=[];" +
 
-                "if(!data || data.length<=period){" +
-                "return result;" +
-                "}" +
+                "if(!data||data.length<=period)return result;" +
 
                 "var gains=0;" +
                 "var losses=0;" +
@@ -1781,64 +1767,119 @@ public class MainActivity extends AppCompatActivity {
                 "for(var i=1;i<=period;i++){" +
 
                 "var change=" +
-                "Number(data[i].close)-" +
-                "Number(data[i-1].close);" +
+                "Number(data[i].close)-Number(data[i-1].close);" +
 
-                "if(change>0){" +
-                "gains+=change;" +
-                "}else{" +
-                "losses+=Math.abs(change);" +
-                "}" +
+                "if(change>0)gains+=change;" +
+                "else losses+=Math.abs(change);" +
 
                 "}" +
 
                 "var avgGain=gains/period;" +
                 "var avgLoss=losses/period;" +
 
-                "var first;" +
-
-                "if(avgLoss===0){" +
-                "first=100;" +
-                "}else{" +
-
-                "var rs=avgGain/avgLoss;" +
-                "first=100-(100/(1+rs));" +
-
-                "}" +
+                "var rsi=avgLoss===0?100:" +
+                "(100-(100/(1+(avgGain/avgLoss))));" +
 
                 "result.push({" +
-                "time:data[period].time," +
-                "value:first" +
+                "index:period," +
+                "value:rsi" +
                 "});" +
 
                 "for(var k=period+1;k<data.length;k++){" +
 
                 "var diff=" +
-                "Number(data[k].close)-" +
-                "Number(data[k-1].close);" +
+                "Number(data[k].close)-Number(data[k-1].close);" +
 
                 "var gain=diff>0?diff:0;" +
                 "var loss=diff<0?Math.abs(diff):0;" +
 
-                "avgGain=" +
-                "((avgGain*(period-1))+gain)/period;" +
+                "avgGain=((avgGain*(period-1))+gain)/period;" +
+                "avgLoss=((avgLoss*(period-1))+loss)/period;" +
 
-                "avgLoss=" +
-                "((avgLoss*(period-1))+loss)/period;" +
+                "rsi=avgLoss===0?100:" +
+                "(100-(100/(1+(avgGain/avgLoss))));" +
 
-                "var value;" +
+                "result.push({" +
+                "index:k," +
+                "value:rsi" +
+                "});" +
+                "}" +
 
-                "if(avgLoss===0){" +
-                "value=100;" +
-                "}else{" +
+                "return result;" +
+                "}" +
 
-                "var rs2=avgGain/avgLoss;" +
-                "value=100-(100/(1+rs2));" +
+                "function calculateATR(data,period){" +
+
+                "var result=[];" +
+                "if(!data||data.length<=period)return result;" +
+
+                "var trs=[];" +
+
+                "for(var i=1;i<data.length;i++){" +
+
+                "var high=Number(data[i].high);" +
+                "var low=Number(data[i].low);" +
+                "var pc=Number(data[i-1].close);" +
+
+                "trs.push(Math.max(" +
+                "high-low," +
+                "Math.abs(high-pc)," +
+                "Math.abs(low-pc)" +
+                "));" +
 
                 "}" +
 
+                "var sum=0;" +
+
+                "for(var j=0;j<period;j++){" +
+                "sum+=trs[j];" +
+                "}" +
+
+                "var atr=sum/period;" +
+
                 "result.push({" +
-                "time:data[k].time," +
+                "index:period," +
+                "value:atr" +
+                "});" +
+
+                "for(var k=period;k<trs.length;k++){" +
+
+                "atr=((atr*(period-1))+trs[k])/period;" +
+
+                "result.push({" +
+                "index:k+1," +
+                "value:atr" +
+                "});" +
+
+                "}" +
+
+                "return result;" +
+                "}" +
+
+                "function calculateStochastic(data,period){" +
+
+                "var result=[];" +
+                "if(!data||data.length<period)return result;" +
+
+                "for(var i=period-1;i<data.length;i++){" +
+
+                "var highest=-Infinity;" +
+                "var lowest=Infinity;" +
+
+                "for(var j=i-period+1;j<=i;j++){" +
+
+                "highest=Math.max(highest,Number(data[j].high));" +
+                "lowest=Math.min(lowest,Number(data[j].low));" +
+                "}" +
+
+                "var close=Number(data[i].close);" +
+
+                "var value=highest===lowest?" +
+                "50:" +
+                "((close-lowest)/(highest-lowest))*100;" +
+
+                "result.push({" +
+                "index:i," +
                 "value:value" +
                 "});" +
 
@@ -1847,20 +1888,105 @@ public class MainActivity extends AppCompatActivity {
                 "return result;" +
                 "}" +
 
+                "function calculateMACD(data){" +
+
+                "var result=[];" +
+
+                "var ema12=calculateEMA(data,12);" +
+                "var ema26=calculateEMA(data,26);" +
+
+                "var map12={};" +
+
+                "for(var i=0;i<ema12.length;i++){" +
+                "map12[ema12[i].index]=ema12[i].value;" +
+                "}" +
+
+                "for(var j=0;j<ema26.length;j++){" +
+
+                "var index=ema26[j].index;" +
+
+                "if(map12[index]!==undefined){" +
+
+                "result.push({" +
+                "index:index," +
+                "value:map12[index]-ema26[j].value" +
+                "});" +
+
+                "}" +
+
+                "}" +
+
+                "if(result.length<9)return {" +
+                "line:result," +
+                "signal:[]," +
+                "histogram:[]" +
+                "};" +
+
+                "var signal=[];" +
+                "var multiplier=2/10;" +
+                "var sum=0;" +
+
+                "for(var k=0;k<9;k++){" +
+                "sum+=result[k].value;" +
+                "}" +
+
+                "var previous=sum/9;" +
+
+                "signal.push({" +
+                "index:result[8].index," +
+                "value:previous" +
+                "});" +
+
+                "for(var n=9;n<result.length;n++){" +
+
+                "var value=((result[n].value-previous)*multiplier)+previous;" +
+                "previous=value;" +
+
+                "signal.push({" +
+                "index:result[n].index," +
+                "value:value" +
+                "});" +
+                "}" +
+
+                "var signalMap={};" +
+
+                "for(var p=0;p<signal.length;p++){" +
+                "signalMap[signal[p].index]=signal[p].value;" +
+                "}" +
+
+                "var histogram=[];" +
+
+                "for(var q=0;q<result.length;q++){" +
+
+                "var sv=signalMap[result[q].index];" +
+
+                "if(sv!==undefined){" +
+                "histogram.push({" +
+                "index:result[q].index," +
+                "value:result[q].value-sv" +
+                "});" +
+                "}" +
+                "}" +
+
+                "return {" +
+                "line:result," +
+                "signal:signal," +
+                "histogram:histogram" +
+                "};" +
+                "}" +
+
                 "function calculateBollinger(data,period,mult){" +
 
                 "var upper=[];" +
                 "var middle=[];" +
                 "var lower=[];" +
 
-                "if(!data || data.length<period){" +
-
+                "if(!data||data.length<period){" +
                 "return {" +
                 "upper:upper," +
                 "middle:middle," +
                 "lower:lower" +
                 "};" +
-
                 "}" +
 
                 "for(var i=period-1;i<data.length;i++){" +
@@ -1876,27 +2002,25 @@ public class MainActivity extends AppCompatActivity {
 
                 "for(var k=i-period+1;k<=i;k++){" +
 
-                "var difference=" +
-                "Number(data[k].close)-mean;" +
-
-                "variance+=difference*difference;" +
+                "var d=Number(data[k].close)-mean;" +
+                "variance+=d*d;" +
 
                 "}" +
 
                 "var sd=Math.sqrt(variance/period);" +
 
                 "upper.push({" +
-                "time:data[i].time," +
+                "index:i," +
                 "value:mean+(mult*sd)" +
                 "});" +
 
                 "middle.push({" +
-                "time:data[i].time," +
+                "index:i," +
                 "value:mean" +
                 "});" +
 
                 "lower.push({" +
-                "time:data[i].time," +
+                "index:i," +
                 "value:mean-(mult*sd)" +
                 "});" +
 
@@ -1909,602 +2033,430 @@ public class MainActivity extends AppCompatActivity {
                 "};" +
                 "}" +
 
-                "function calculateATR(data,period){" +
+                "function drawGrid(ctx,w,h,top,bottom,left,right,range){" +
 
-                "var result=[];" +
+                "ctx.strokeStyle='#18212C';" +
+                "ctx.lineWidth=1;" +
 
-                "if(!data || data.length<=period){" +
-                "return result;" +
+                "for(var i=0;i<6;i++){" +
+
+                "var y=top+((bottom-top)/5)*i;" +
+
+                "ctx.beginPath();" +
+                "ctx.moveTo(left,y);" +
+                "ctx.lineTo(right,y);" +
+                "ctx.stroke();" +
+
+                "var price=range.high-" +
+                "((range.high-range.low)/5)*i;" +
+
+                "ctx.fillStyle='#718096';" +
+                "ctx.font='10px Arial';" +
+
+                "ctx.fillText(price.toFixed(5),right-62,y-2);" +
                 "}" +
 
-                "var trs=[];" +
+                "for(var j=0;j<7;j++){" +
 
-                "for(var i=1;i<data.length;i++){" +
+                "var x=left+((right-left)/6)*j;" +
 
-                "var high=Number(data[i].high);" +
-                "var low=Number(data[i].low);" +
-                "var previousClose=" +
-                "Number(data[i-1].close);" +
-
-                "var tr=Math.max(" +
-                "high-low," +
-                "Math.abs(high-previousClose)," +
-                "Math.abs(low-previousClose)" +
-                ");" +
-
-                "trs.push(tr);" +
+                "ctx.beginPath();" +
+                "ctx.moveTo(x,top);" +
+                "ctx.lineTo(x,bottom);" +
+                "ctx.stroke();" +
+                "}" +
                 "}" +
 
-                "if(trs.length<period){" +
-                "return result;" +
-                "}" +
+                "function drawLineSeries(ctx,series,range,left,right,top,bottom,color,width){" +
 
-                "var sum=0;" +
+                "if(!series||series.length===0)return;" +
 
-                "for(var j=0;j<period;j++){" +
-                "sum+=trs[j];" +
-                "}" +
+                "ctx.strokeStyle=color;" +
+                "ctx.lineWidth=width;" +
+                "ctx.beginPath();" +
 
-                "var atr=sum/period;" +
+                "var started=false;" +
 
-                "result.push({" +
-                "time:data[period].time," +
-                "value:atr" +
-                "});" +
+                "for(var i=0;i<series.length;i++){" +
 
-                "for(var k=period;k<trs.length;k++){" +
+                "var item=series[i];" +
 
-                "atr=" +
-                "((atr*(period-1))+trs[k])/period;" +
+                "var x=left+" +
+                "((right-left)*item.index/" +
+                "Math.max(1,currentData.length-1));" +
 
-                "result.push({" +
-                "time:data[k+1].time," +
-                "value:atr" +
-                "});" +
+                "var y=mapPrice(item.value,range,top,bottom);" +
 
-                "}" +
-
-                "return result;" +
-                "}" +
-
-                "function calculateStochastic(data,period){" +
-
-                "var result=[];" +
-
-                "if(!data || data.length<period){" +
-                "return result;" +
-                "}" +
-
-                "for(var i=period-1;i<data.length;i++){" +
-
-                "var highest=-Infinity;" +
-                "var lowest=Infinity;" +
-
-                "for(var j=i-period+1;j<=i;j++){" +
-
-                "highest=Math.max(" +
-                "highest," +
-                "Number(data[j].high)" +
-                ");" +
-
-                "lowest=Math.min(" +
-                "lowest," +
-                "Number(data[j].low)" +
-                ");" +
-
-                "}" +
-
-                "var close=" +
-                "Number(data[i].close);" +
-
-                "var value;" +
-
-                "if(highest===lowest){" +
-                "value=50;" +
+                "if(!started){" +
+                "ctx.moveTo(x,y);" +
+                "started=true;" +
                 "}else{" +
-
-                "value=" +
-                "((close-lowest)/" +
-                "(highest-lowest))*100;" +
-
+                "ctx.lineTo(x,y);" +
+                "}" +
                 "}" +
 
-                "result.push({" +
-                "time:data[i].time," +
-                "value:value" +
-                "});" +
-
+                "ctx.stroke();" +
                 "}" +
 
-                "return result;" +
-                "}" +
+                "function drawEverything(){" +
 
-                "function calculateMACD(data){" +
+                "if(!mainCanvas)return;" +
 
-                "var line=[];" +
-                "var signal=[];" +
-                "var histogram=[];" +
+                "var ctx=mainCanvas.getContext('2d');" +
+                "var w=mainCanvas.clientWidth;" +
+                "var h=mainCanvas.clientHeight;" +
 
-                "if(!data || data.length<35){" +
+                "ctx.clearRect(0,0,w,h);" +
 
-                "return {" +
-                "line:line," +
-                "signal:signal," +
-                "histogram:histogram" +
-                "};" +
+                "if(!currentData||currentData.length===0){" +
 
-                "}" +
-
-                "var ema12=calculateEMA(data,12);" +
-                "var ema26=calculateEMA(data,26);" +
-
-                "var map12={};" +
-
-                "for(var i=0;i<ema12.length;i++){" +
-                "map12[ema12[i].time]=ema12[i].value;" +
-                "}" +
-
-                "for(var j=0;j<ema26.length;j++){" +
-
-                "var time=ema26[j].time;" +
-
-                "if(map12[time]!==undefined){" +
-
-                "line.push({" +
-                "time:time," +
-                "value:map12[time]-ema26[j].value" +
-                "});" +
-
-                "}" +
-
-                "}" +
-
-                "if(line.length<9){" +
-
-                "return {" +
-                "line:line," +
-                "signal:signal," +
-                "histogram:histogram" +
-                "};" +
-
-                "}" +
-
-                "var multiplier=2/10;" +
-                "var sum=0;" +
-
-                "for(var k=0;k<9;k++){" +
-                "sum+=line[k].value;" +
-                "}" +
-
-                "var previous=sum/9;" +
-
-                "signal.push({" +
-                "time:line[8].time," +
-                "value:previous" +
-                "});" +
-
-                "for(var n=9;n<line.length;n++){" +
-
-                "var current=" +
-                "((line[n].value-previous)" +
-                "*multiplier)+previous;" +
-
-                "previous=current;" +
-
-                "signal.push({" +
-                "time:line[n].time," +
-                "value:current" +
-                "});" +
-
-                "}" +
-
-                "var signalMap={};" +
-
-                "for(var p=0;p<signal.length;p++){" +
-                "signalMap[signal[p].time]=" +
-                "signal[p].value;" +
-                "}" +
-
-                "for(var q=0;q<line.length;q++){" +
-
-                "var sv=signalMap[line[q].time];" +
-
-                "if(sv!==undefined){" +
-
-                "histogram.push({" +
-                "time:line[q].time," +
-                "value:line[q].value-sv" +
-                "});" +
-
-                "}" +
-
-                "}" +
-
-                "return {" +
-                "line:line," +
-                "signal:signal," +
-                "histogram:histogram" +
-                "};" +
-                "}" +
-
-                "function removeSeriesSafe(c,s){" +
-
-                "if(!c || !s) return;" +
-
-                "try{" +
-                "c.removeSeries(s);" +
-                "}catch(e){}" +
-
-                "}" +
-
-                "function clearOverlayIndicators(){" +
-
-                "removeSeriesSafe(chart,ema20);" +
-                "removeSeriesSafe(chart,ema50);" +
-                "removeSeriesSafe(chart,sma200);" +
-                "removeSeriesSafe(chart,upperBand);" +
-                "removeSeriesSafe(chart,middleBand);" +
-                "removeSeriesSafe(chart,lowerBand);" +
-
-                "ema20=null;" +
-                "ema50=null;" +
-                "sma200=null;" +
-                "upperBand=null;" +
-                "middleBand=null;" +
-                "lowerBand=null;" +
-                "}" +
-
-                "function redrawOverlayIndicators(){" +
-
-                "if(!chart || !currentData.length){" +
+                "setChartMessage('NO MARKET DATA');" +
                 "return;" +
                 "}" +
 
-                "clearOverlayIndicators();" +
+                "var lowerVisible=lowerIndicator!=='NONE';" +
+
+                "var lowerHeight=lowerVisible?h*0.28:0;" +
+                "var top=28;" +
+                "var bottom=h-lowerHeight-25;" +
+                "var left=8;" +
+                "var right=w-70;" +
+
+                "var visibleData=currentData;" +
+
+                "var range=priceRange(visibleData);" +
+
+                "drawGrid(ctx,w,h,top,bottom,left,right,range);" +
+
+                "var count=visibleData.length;" +
+                "var spacing=(right-left)/Math.max(1,count);" +
+                "var bodyWidth=Math.max(2,spacing*0.62);" +
+
+                "for(var i=0;i<count;i++){" +
+
+                "var c=visibleData[i];" +
+
+                "var x=left+(spacing*i)+(spacing/2);" +
+
+                "var openY=mapPrice(Number(c.open),range,top,bottom);" +
+                "var closeY=mapPrice(Number(c.close),range,top,bottom);" +
+                "var highY=mapPrice(Number(c.high),range,top,bottom);" +
+                "var lowY=mapPrice(Number(c.low),range,top,bottom);" +
+
+                "var up=Number(c.close)>=Number(c.open);" +
+
+                "ctx.strokeStyle=up?'#16C784':'#EA3943';" +
+                "ctx.fillStyle=up?'#16C784':'#EA3943';" +
+                "ctx.lineWidth=1;" +
+
+                "ctx.beginPath();" +
+                "ctx.moveTo(x,highY);" +
+                "ctx.lineTo(x,lowY);" +
+                "ctx.stroke();" +
+
+                "var bodyTop=Math.min(openY,closeY);" +
+                "var bodyHeight=Math.max(1,Math.abs(closeY-openY));" +
+
+                "ctx.fillRect(" +
+                "x-bodyWidth/2," +
+                "bodyTop," +
+                "bodyWidth," +
+                "bodyHeight" +
+                ");" +
+                "}" +
 
                 "if(ema20Enabled){" +
-
-                "var data20=" +
-                "calculateEMA(currentData,20);" +
-
-                "if(data20.length){" +
-
-                "ema20=createLineSeries(chart,{" +
-                "color:'#FFD54F'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'EMA 20'" +
-                "});" +
-
-                "if(ema20){" +
-                "ema20.setData(data20);" +
-                "}" +
-
-                "}" +
+                "drawLineSeries(" +
+                "ctx,calculateEMA(currentData,20)," +
+                "range,left,right,top,bottom," +
+                "'#FFD54F',2" +
+                ");" +
                 "}" +
 
                 "if(ema50Enabled){" +
-
-                "var data50=" +
-                "calculateEMA(currentData,50);" +
-
-                "if(data50.length){" +
-
-                "ema50=createLineSeries(chart,{" +
-                "color:'#42A5F5'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'EMA 50'" +
-                "});" +
-
-                "if(ema50){" +
-                "ema50.setData(data50);" +
-                "}" +
-
-                "}" +
+                "drawLineSeries(" +
+                "ctx,calculateEMA(currentData,50)," +
+                "range,left,right,top,bottom," +
+                "'#42A5F5',2" +
+                ");" +
                 "}" +
 
                 "if(sma200Enabled){" +
-
-                "var data200=" +
-                "calculateSMA(currentData,200);" +
-
-                "if(data200.length){" +
-
-                "sma200=createLineSeries(chart,{" +
-                "color:'#FFFFFF'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'SMA 200'" +
-                "});" +
-
-                "if(sma200){" +
-                "sma200.setData(data200);" +
-                "}" +
-
-                "}" +
+                "drawLineSeries(" +
+                "ctx,calculateSMA(currentData,200)," +
+                "range,left,right,top,bottom," +
+                "'#FFFFFF',2" +
+                ");" +
                 "}" +
 
                 "if(bollingerEnabled){" +
 
-                "var bands=" +
-                "calculateBollinger(" +
-                "currentData,20,2" +
+                "var bands=calculateBollinger(currentData,20,2);" +
+
+                "drawLineSeries(ctx,bands.upper,range,left,right,top,bottom,'#90CAF9',1);" +
+                "drawLineSeries(ctx,bands.middle,range,left,right,top,bottom,'#B0BEC5',1);" +
+                "drawLineSeries(ctx,bands.lower,range,left,right,top,bottom,'#90CAF9',1);" +
+
+                "}" +
+
+                "for(var s=0;s<signalLines.length;s++){" +
+
+                "var line=signalLines[s];" +
+
+                "var y=mapPrice(line.price,range,top,bottom);" +
+
+                "ctx.strokeStyle=line.color;" +
+                "ctx.lineWidth=1;" +
+
+                "ctx.beginPath();" +
+                "ctx.moveTo(left,y);" +
+                "ctx.lineTo(right,y);" +
+                "ctx.stroke();" +
+
+                "ctx.fillStyle=line.color;" +
+                "ctx.font='10px Arial';" +
+                "ctx.fillText(line.title,right+3,y+3);" +
+                "}" +
+
+                "for(var d=0;d<drawingLines.length;d++){" +
+
+                "var draw=drawingLines[d];" +
+                "var dy=mapPrice(draw.price,range,top,bottom);" +
+
+                "ctx.strokeStyle='#FFFFFF';" +
+                "ctx.lineWidth=1;" +
+                "ctx.setLineDash([5,4]);" +
+
+                "ctx.beginPath();" +
+                "ctx.moveTo(left,dy);" +
+                "ctx.lineTo(right,dy);" +
+                "ctx.stroke();" +
+
+                "ctx.setLineDash([]);" +
+
+                "ctx.fillStyle='#FFFFFF';" +
+                "ctx.font='10px Arial';" +
+                "ctx.fillText('LEVEL',right+3,dy+3);" +
+                "}" +
+
+                "drawLowerIndicator();" +
+
+                "ctx.fillStyle='#8A96A8';" +
+                "ctx.font='10px Arial';" +
+                "ctx.fillText(" +
+                "'CANDLES: '+currentData.length," +
+                "8,15" +
                 ");" +
 
-                "if(bands.middle.length){" +
-
-                "upperBand=createLineSeries(chart,{" +
-                "color:'#90CAF9'," +
-                "lineWidth:1," +
-                "priceLineVisible:false," +
-                "lastValueVisible:false," +
-                "title:'BB Upper'" +
-                "});" +
-
-                "middleBand=createLineSeries(chart,{" +
-                "color:'#B0BEC5'," +
-                "lineWidth:1," +
-                "priceLineVisible:false," +
-                "lastValueVisible:false," +
-                "title:'BB Middle'" +
-                "});" +
-
-                "lowerBand=createLineSeries(chart,{" +
-                "color:'#90CAF9'," +
-                "lineWidth:1," +
-                "priceLineVisible:false," +
-                "lastValueVisible:false," +
-                "title:'BB Lower'" +
-                "});" +
-
-                "if(upperBand){" +
-                "upperBand.setData(bands.upper);" +
-                "}" +
-
-                "if(middleBand){" +
-                "middleBand.setData(bands.middle);" +
-                "}" +
-
-                "if(lowerBand){" +
-                "lowerBand.setData(bands.lower);" +
-                "}" +
-
-                "}" +
-                "}" +
-                "}" +
-
-                "function clearLowerSeries(){" +
-
-                "removeSeriesSafe(" +
-                "indicatorChart," +
-                "lowerSeries1" +
+                "setChartMessage(" +
+                "lowerVisible?" +
+                "lowerIndicator+' • '+currentData.length+' candles' :" +
+                "currentData.length+' candles • chart ready'" +
                 ");" +
 
-                "removeSeriesSafe(" +
-                "indicatorChart," +
-                "lowerSeries2" +
-                ");" +
-
-                "removeSeriesSafe(" +
-                "indicatorChart," +
-                "lowerHistogram" +
-                ");" +
-
-                "lowerSeries1=null;" +
-                "lowerSeries2=null;" +
-                "lowerHistogram=null;" +
                 "}" +
 
-                "function showIndicatorPanel(show,title){" +
+                "function drawLowerIndicator(){" +
 
-                "var panel=" +
-                "document.getElementById(" +
-                "'indicatorPanel'" +
-                ");" +
+                "var canvas=lowerCanvas;" +
+                "var ctx=canvas.getContext('2d');" +
+                "var w=canvas.clientWidth;" +
+                "var h=canvas.clientHeight;" +
 
-                "var main=" +
-                "document.getElementById(" +
-                "'mainChart'" +
-                ");" +
-
-                "var label=" +
-                "document.getElementById(" +
-                "'indicatorTitle'" +
-                ");" +
-
-                "if(show){" +
-
-                "panel.style.display='block';" +
-                "panel.style.height='28%';" +
-                "main.style.height='72%';" +
-                "label.innerText=title;" +
-
-                "}else{" +
-
-                "panel.style.display='none';" +
-                "main.style.height='100%';" +
-                "label.innerText='';" +
-
-                "}" +
-
-                "resizeCharts();" +
-                "}" +
-
-                "function redrawLowerIndicator(){" +
-
-                "if(!indicatorChart || !currentData.length){" +
-                "return;" +
-                "}" +
-
-                "clearLowerSeries();" +
+                "ctx.clearRect(0,0,w,h);" +
 
                 "if(lowerIndicator==='NONE'){" +
-
-                "showIndicatorPanel(false,'');" +
+                "canvas.style.display='none';" +
                 "return;" +
+                "}" +
 
+                "canvas.style.display='block';" +
+
+                "var series=[];" +
+                "var series2=[];" +
+                "var histogram=[];" +
+                "var min=Infinity;" +
+                "var max=-Infinity;" +
+
+                "if(lowerIndicator==='RSI'){" +
+                "series=calculateRSI(currentData,14);" +
+                "min=0;" +
+                "max=100;" +
+                "}else if(lowerIndicator==='ATR'){" +
+                "series=calculateATR(currentData,14);" +
+                "}else if(lowerIndicator==='STOCHASTIC'){" +
+                "series=calculateStochastic(currentData,14);" +
+                "min=0;" +
+                "max=100;" +
+                "}else if(lowerIndicator==='MACD'){" +
+
+                "var macd=calculateMACD(currentData);" +
+                "series=macd.line;" +
+                "series2=macd.signal;" +
+                "histogram=macd.histogram;" +
+                "}" +
+
+                "for(var i=0;i<series.length;i++){" +
+                "min=Math.min(min,series[i].value);" +
+                "max=Math.max(max,series[i].value);" +
+                "}" +
+
+                "for(var j=0;j<series2.length;j++){" +
+                "min=Math.min(min,series2[j].value);" +
+                "max=Math.max(max,series2[j].value);" +
+                "}" +
+
+                "if(!isFinite(min)||!isFinite(max))return;" +
+
+                "if(min===max){" +
+                "min-=1;" +
+                "max+=1;" +
+                "}" +
+
+                "var pad=(max-min)*0.12;" +
+                "min-=pad;" +
+                "max+=pad;" +
+
+                "var left=8;" +
+                "var right=w-8;" +
+                "var top=12;" +
+                "var bottom=h-12;" +
+
+                "ctx.strokeStyle='#18212C';" +
+                "ctx.lineWidth=1;" +
+
+                "for(var g=0;g<4;g++){" +
+
+                "var gy=top+((bottom-top)/3)*g;" +
+
+                "ctx.beginPath();" +
+                "ctx.moveTo(left,gy);" +
+                "ctx.lineTo(right,gy);" +
+                "ctx.stroke();" +
+                "}" +
+
+                "function mapLower(value){" +
+                "return top+((max-value)/(max-min))*(bottom-top);" +
+                "}" +
+
+                "if(lowerIndicator==='MACD'){" +
+
+                "for(var b=0;b<histogram.length;b++){" +
+
+                "var hx=left+" +
+                "((right-left)*histogram[b].index/" +
+                "Math.max(1,currentData.length-1));" +
+
+                "var hy=mapLower(histogram[b].value);" +
+                "var zero=mapLower(0);" +
+
+                "ctx.fillStyle=histogram[b].value>=0?'#16C784':'#EA3943';" +
+
+                "ctx.fillRect(" +
+                "hx-2," +
+                "Math.min(hy,zero)," +
+                "4," +
+                "Math.max(1,Math.abs(zero-hy))" +
+                ");" +
+                "}" +
+
+                "}" +
+
+                "function drawLowerLine(items,color,width){" +
+
+                "if(!items||items.length===0)return;" +
+
+                "ctx.strokeStyle=color;" +
+                "ctx.lineWidth=width;" +
+                "ctx.beginPath();" +
+
+                "for(var z=0;z<items.length;z++){" +
+
+                "var x=left+" +
+                "((right-left)*items[z].index/" +
+                "Math.max(1,currentData.length-1));" +
+
+                "var y=mapLower(items[z].value);" +
+
+                "if(z===0)ctx.moveTo(x,y);" +
+                "else ctx.lineTo(x,y);" +
+                "}" +
+
+                "ctx.stroke();" +
                 "}" +
 
                 "if(lowerIndicator==='RSI'){" +
-
-                "var rsi=" +
-                "calculateRSI(currentData,14);" +
-
-                "if(rsi.length){" +
-
-                "lowerSeries1=createLineSeries(" +
-                "indicatorChart,{" +
-                "color:'#AB47BC'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'RSI 14'" +
-                "});" +
-
-                "if(lowerSeries1){" +
-                "lowerSeries1.setData(rsi);" +
-                "}" +
-
-                "showIndicatorPanel(true,'RSI 14');" +
-                "}" +
-
-                "}else if(lowerIndicator==='MACD'){" +
-
-                "var macd=" +
-                "calculateMACD(currentData);" +
-
-                "lowerSeries1=createLineSeries(" +
-                "indicatorChart,{" +
-                "color:'#42A5F5'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'MACD'" +
-                "});" +
-
-                "lowerSeries2=createLineSeries(" +
-                "indicatorChart,{" +
-                "color:'#FFCA28'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'Signal'" +
-                "});" +
-
-                "lowerHistogram=createHistogramSeries(" +
-                "indicatorChart,{" +
-                "priceLineVisible:false," +
-                "lastValueVisible:false" +
-                "});" +
-
-                "if(lowerSeries1){" +
-                "lowerSeries1.setData(macd.line);" +
-                "}" +
-
-                "if(lowerSeries2){" +
-                "lowerSeries2.setData(macd.signal);" +
-                "}" +
-
-                "if(lowerHistogram){" +
-                "lowerHistogram.setData(macd.histogram);" +
-                "}" +
-
-                "showIndicatorPanel(true,'MACD 12 / 26 / 9');" +
-
+                "drawLowerLine(series,'#AB47BC',2);" +
                 "}else if(lowerIndicator==='ATR'){" +
-
-                "var atr=" +
-                "calculateATR(currentData,14);" +
-
-                "lowerSeries1=createLineSeries(" +
-                "indicatorChart,{" +
-                "color:'#FF7043'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'ATR 14'" +
-                "});" +
-
-                "if(lowerSeries1){" +
-                "lowerSeries1.setData(atr);" +
-                "}" +
-
-                "showIndicatorPanel(true,'ATR 14');" +
-
+                "drawLowerLine(series,'#FF7043',2);" +
                 "}else if(lowerIndicator==='STOCHASTIC'){" +
-
-                "var stoch=" +
-                "calculateStochastic(currentData,14);" +
-
-                "lowerSeries1=createLineSeries(" +
-                "indicatorChart,{" +
-                "color:'#26C6DA'," +
-                "lineWidth:2," +
-                "priceLineVisible:false," +
-                "lastValueVisible:true," +
-                "title:'Stochastic 14'" +
-                "});" +
-
-                "if(lowerSeries1){" +
-                "lowerSeries1.setData(stoch);" +
+                "drawLowerLine(series,'#26C6DA',2);" +
+                "}else if(lowerIndicator==='MACD'){" +
+                "drawLowerLine(series,'#42A5F5',2);" +
+                "drawLowerLine(series2,'#FFCA28',2);" +
                 "}" +
 
-                "showIndicatorPanel(true,'STOCHASTIC 14');" +
+                "var label=document.getElementById('indicatorTitle');" +
+                "label.innerText=lowerIndicator==='NONE'?'':lowerIndicator;" +
                 "}" +
 
-                "if(indicatorChart){" +
-                "indicatorChart.timeScale().fitContent();" +
-                "}" +
+                "function setChartData(data,symbol,entry,sl,tp1,tp2,tp3,statusText){" +
+
+                "if(!data||data.length===0){" +
+                "setChartMessage('NO MARKET DATA');" +
+                "return;" +
                 "}" +
 
-                "function redrawIndicators(){" +
+                "currentData=data;" +
 
-                "redrawOverlayIndicators();" +
-                "redrawLowerIndicator();" +
+                "signalLines=[];" +
+
+                "if(entry>0){" +
+                "signalLines.push({price:entry,title:'ENTRY',color:'#FFFFFF'});" +
+                "}" +
+
+                "if(sl>0){" +
+                "signalLines.push({price:sl,title:'SL',color:'#EA3943'});" +
+                "}" +
+
+                "if(tp1>0){" +
+                "signalLines.push({price:tp1,title:'TP1',color:'#16C784'});" +
+                "}" +
+
+                "if(tp2>0){" +
+                "signalLines.push({price:tp2,title:'TP2',color:'#16C784'});" +
+                "}" +
+
+                "if(tp3>0){" +
+                "signalLines.push({price:tp3,title:'TP3',color:'#16C784'});" +
+                "}" +
+
+                "drawEverything();" +
 
                 "}" +
 
                 "function setOverlayIndicator(name,enabled){" +
 
-                "if(name==='EMA20'){" +
-                "ema20Enabled=enabled;" +
-                "}" +
+                "if(name==='EMA20')ema20Enabled=enabled;" +
+                "if(name==='EMA50')ema50Enabled=enabled;" +
+                "if(name==='SMA200')sma200Enabled=enabled;" +
+                "if(name==='BOLLINGER')bollingerEnabled=enabled;" +
 
-                "if(name==='EMA50'){" +
-                "ema50Enabled=enabled;" +
-                "}" +
+                "drawEverything();" +
 
-                "if(name==='SMA200'){" +
-                "sma200Enabled=enabled;" +
-                "}" +
-
-                "if(name==='BOLLINGER'){" +
-                "bollingerEnabled=enabled;" +
-                "}" +
-
-                "redrawIndicators();" +
-
-                "setStatus(" +
-                "name+' '+(enabled?'ON':'OFF')" +
-                ");" +
-
+                "setChartMessage(name+' '+(enabled?'ON':'OFF'));" +
                 "}" +
 
                 "function setLowerIndicator(name){" +
 
                 "lowerIndicator=name;" +
 
-                "redrawLowerIndicator();" +
+                "drawEverything();" +
 
-                "if(name==='NONE'){" +
-                "setStatus('Lower indicator cleared');" +
-                "}else{" +
-                "setStatus(name+' active');" +
-                "}" +
+                "setChartMessage(name==='NONE'?" +
+                "'Lower indicators cleared':" +
+                "name+' active'" +
+                ");" +
 
                 "}" +
 
@@ -2516,277 +2468,100 @@ public class MainActivity extends AppCompatActivity {
                 "bollingerEnabled=false;" +
                 "lowerIndicator='NONE';" +
 
-                "clearOverlayIndicators();" +
-                "clearLowerSeries();" +
+                "drawEverything();" +
 
-                "showIndicatorPanel(false,'');" +
-
-                "setStatus('Indicators cleared');" +
-                "}" +
-
-                "function clearSignalLines(){" +
-
-                "if(!candleSeries) return;" +
-
-                "for(var i=0;i<signalLines.length;i++){" +
-
-                "try{" +
-                "candleSeries.removePriceLine(" +
-                "signalLines[i]" +
-                ");" +
-                "}catch(e){}" +
-
-                "}" +
-
-                "signalLines=[];" +
-                "}" +
-
-                "function clearDrawingsOnly(){" +
-
-                "if(!candleSeries) return;" +
-
-                "for(var i=0;i<drawingLines.length;i++){" +
-
-                "try{" +
-                "candleSeries.removePriceLine(" +
-                "drawingLines[i]" +
-                ");" +
-                "}catch(e){}" +
-
-                "}" +
-
-                "drawingLines=[];" +
-                "}" +
-
-                "function addSignalLine(price,title,color){" +
-
-                "if(!candleSeries || price<=0) return;" +
-
-                "try{" +
-
-                "var line=" +
-                "candleSeries.createPriceLine({" +
-
-                "price:price," +
-                "color:color," +
-                "lineWidth:1," +
-                "lineStyle:2," +
-                "axisLabelVisible:true," +
-                "title:title" +
-
-                "});" +
-
-                "signalLines.push(line);" +
-
-                "}catch(e){}" +
-
-                "}" +
-
-                "function addDrawingLine(price,title){" +
-
-                "if(!candleSeries || price<=0) return;" +
-
-                "try{" +
-
-                "var line=" +
-                "candleSeries.createPriceLine({" +
-
-                "price:price," +
-                "color:'#FFFFFF'," +
-                "lineWidth:1," +
-                "lineStyle:0," +
-                "axisLabelVisible:true," +
-                "title:title" +
-
-                "});" +
-
-                "drawingLines.push(line);" +
-
-                "}catch(e){}" +
-
-                "}" +
-
-                "function setChartData(" +
-                "data,symbol,entry,sl,tp1,tp2,tp3,statusText){" +
-
-                "if(!candleSeries){" +
-
-                "setStatus('Chart is loading...');" +
-                "return;" +
-                "}" +
-
-                "if(!data || data.length===0){" +
-
-                "setStatus('NO CACHED MARKET DATA');" +
-                "return;" +
-                "}" +
-
-                "currentData=data;" +
-
-                "candleSeries.setData(data);" +
-
-                "clearSignalLines();" +
-
-                "addSignalLine(entry,'ENTRY','#FFFFFF');" +
-                "addSignalLine(sl,'SL','#EA3943');" +
-                "addSignalLine(tp1,'TP1','#16C784');" +
-                "addSignalLine(tp2,'TP2','#16C784');" +
-                "addSignalLine(tp3,'TP3','#16C784');" +
-
-                "redrawIndicators();" +
-
-                "chart.timeScale().fitContent();" +
-
-                "if(indicatorChart){" +
-                "indicatorChart.timeScale().fitContent();" +
-                "}" +
-
-                "setStatus(" +
-                "statusText+' • '+symbol" +
-                ");" +
-
+                "setChartMessage('Indicators cleared');" +
                 "}" +
 
                 "function fitChart(){" +
 
-                "if(chart){" +
-                "chart.timeScale().fitContent();" +
+                "drawEverything();" +
+
+                "setChartMessage('Chart fitted');" +
                 "}" +
 
-                "if(indicatorChart){" +
-                "indicatorChart.timeScale().fitContent();" +
-                "}" +
+                "function addDrawingLine(price,title){" +
 
-                "setStatus('Chart fitted');" +
-                "}" +
-
-                "function resizeCharts(){" +
-
-                "try{" +
-
-                "if(chart){" +
-
-                "chart.applyOptions({" +
-                "width:document.getElementById(" +
-                "'mainChart').clientWidth," +
-                "height:document.getElementById(" +
-                "'mainChart').clientHeight" +
+                "drawingLines.push({" +
+                "price:price," +
+                "title:title" +
                 "});" +
 
-                "}" +
-
-                "if(indicatorChart){" +
-
-                "indicatorChart.applyOptions({" +
-                "width:document.getElementById(" +
-                "'indicatorPanel').clientWidth," +
-                "height:document.getElementById(" +
-                "'indicatorPanel').clientHeight" +
-                "});" +
-
-                "}" +
-
-                "}catch(e){}" +
+                "drawEverything();" +
                 "}" +
 
                 "function enableHorizontalDrawing(){" +
 
-                "if(!candleSeries) return;" +
-
                 "drawingMode=true;" +
 
-                "var layer=" +
-                "document.getElementById('drawLayer');" +
-
-                "layer.style.pointerEvents='auto';" +
-                "layer.style.cursor='crosshair';" +
-
-                "setStatus(" +
-                "'DRAW MODE • TAP CHART FOR LEVEL'" +
-                ");" +
-
+                "setChartMessage('DRAW MODE • TAP CHART FOR LEVEL');" +
                 "}" +
 
                 "function disableDrawing(){" +
 
                 "drawingMode=false;" +
 
-                "var layer=" +
-                "document.getElementById('drawLayer');" +
-
-                "layer.style.pointerEvents='none';" +
-                "layer.style.cursor='default';" +
-
-                "setStatus('Drawing mode OFF');" +
-
+                "setChartMessage('Drawing mode OFF');" +
                 "}" +
 
                 "function clearDrawings(){" +
 
-                "clearDrawingsOnly();" +
-                "setStatus('Drawings cleared');" +
+                "drawingLines=[];" +
 
+                "drawEverything();" +
+
+                "setChartMessage('Drawings cleared');" +
                 "}" +
 
-                "document.addEventListener(" +
-                "'DOMContentLoaded',function(){" +
+                "function chartClick(event){" +
 
-                "var layer=" +
-                "document.getElementById('drawLayer');" +
+                "if(!drawingMode||currentData.length===0)return;" +
 
-                "layer.addEventListener('click'," +
-                "function(event){" +
-
-                "if(!drawingMode || !candleSeries){" +
-                "return;" +
-                "}" +
-
-                "var chartElement=" +
-                "document.getElementById('mainChart');" +
-
-                "var rect=" +
-                "chartElement.getBoundingClientRect();" +
+                "var rect=mainCanvas.getBoundingClientRect();" +
 
                 "var y=event.clientY-rect.top;" +
 
-                "try{" +
+                "var h=mainCanvas.clientHeight;" +
 
-                "var price=" +
-                "candleSeries.coordinateToPrice(y);" +
+                "var top=28;" +
 
-                "if(price!==null && price>0){" +
+                "var lowerHeight=" +
+                "(lowerIndicator!=='NONE'?h*0.28:0);" +
 
-                "addDrawingLine(" +
-                "price," +
-                "'LEVEL'" +
-                ");" +
+                "var bottom=h-lowerHeight-25;" +
 
-                "setStatus(" +
-                "'LEVEL '+price.toFixed(5)" +
-                ");" +
+                "var range=priceRange(currentData);" +
+
+                "var price=range.high-" +
+                "((y-top)/(bottom-top))" +
+                "*(range.high-range.low);" +
+
+                "if(price>0){" +
+
+                "addDrawingLine(price,'LEVEL');" +
 
                 "disableDrawing();" +
 
                 "}" +
 
-                "}catch(e){" +
-
-                "setStatus('Unable to draw level');" +
                 "}" +
 
-                "});" +
+                "function init(){" +
 
-                "});" +
+                "mainCanvas=document.getElementById('mainCanvas');" +
+                "lowerCanvas=document.getElementById('lowerCanvas');" +
 
-                "window.addEventListener(" +
-                "'resize',function(){" +
-                "resizeCharts();" +
-                "});" +
+                "mainCanvas.addEventListener('click',chartClick);" +
 
-                "window.onload=function(){" +
-                "initChart();" +
-                "resizeCharts();" +
-                "};" +
+                "window.addEventListener('resize',resizeAll);" +
+
+                "resizeAll();" +
+
+                "setChartMessage('CHART READY • WAITING FOR MARKET DATA');" +
+
+                "}" +
+
+                "window.onload=init;" +
 
                 "</script>" +
 
@@ -2798,7 +2573,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (!chartReady ||
                 chartWebView == null) {
-
             return;
         }
 
@@ -2817,7 +2591,9 @@ public class MainActivity extends AppCompatActivity {
                 candles.isEmpty()) {
 
             chartWebView.evaluateJavascript(
-                    "setStatus('NO CACHED MARKET DATA');",
+                    "setChartMessage('WAITING FOR MARKET DATA • " +
+                            chartSymbol.replace("'", "") +
+                            "');",
                     null
             );
 
@@ -2841,14 +2617,13 @@ public class MainActivity extends AppCompatActivity {
             long firstTime =
                     nowSeconds -
                             (
-                                    (long)
-                                            candles.size()
+                                    (long) candles.size()
                                             *
                                             intervalSeconds
                             );
 
-            for (int i = 0;
-                 i < candles.size();
+            for (int i=0;
+                 i<candles.size();
                  i++) {
 
                 Candle candle =
@@ -2860,16 +2635,29 @@ public class MainActivity extends AppCompatActivity {
                 item.put(
                         "time",
                         firstTime +
-                                (
-                                        (long) i *
-                                                intervalSeconds
-                                )
+                                ((long)i *
+                                        intervalSeconds)
                 );
 
-                item.put("open", candle.open);
-                item.put("high", candle.high);
-                item.put("low", candle.low);
-                item.put("close", candle.close);
+                item.put(
+                        "open",
+                        candle.open
+                );
+
+                item.put(
+                        "high",
+                        candle.high
+                );
+
+                item.put(
+                        "low",
+                        candle.low
+                );
+
+                item.put(
+                        "close",
+                        candle.close
+                );
 
                 array.put(item);
             }
@@ -2877,11 +2665,11 @@ public class MainActivity extends AppCompatActivity {
             SignalResult result =
                     currentSignals.get(chartSymbol);
 
-            double entry = 0;
-            double sl = 0;
-            double tp1 = 0;
-            double tp2 = 0;
-            double tp3 = 0;
+            double entry=0;
+            double sl=0;
+            double tp1=0;
+            double tp2=0;
+            double tp3=0;
 
             if (result != null &&
                     (
@@ -2889,11 +2677,11 @@ public class MainActivity extends AppCompatActivity {
                             "SELL".equals(result.action)
                     )) {
 
-                entry = result.entry;
-                sl = result.sl;
-                tp1 = result.tp1;
-                tp2 = result.tp2;
-                tp3 = result.tp3;
+                entry=result.entry;
+                sl=result.sl;
+                tp1=result.tp1;
+                tp2=result.tp2;
+                tp3=result.tp3;
             }
 
             long cachedAt =
@@ -2901,29 +2689,23 @@ public class MainActivity extends AppCompatActivity {
                             chartSymbol
                     );
 
-            String chartStatusText;
+            String statusText;
 
             if (isForexWeekdayOpen()) {
 
-                chartStatusText =
+                statusText =
                         "LIVE MARKET DATA";
 
             } else {
 
-                String cachedTime =
+                String cached =
                         formatCachedTime(cachedAt);
 
-                if (cachedTime.isEmpty()) {
-
-                    chartStatusText =
-                            "LAST MARKET DATA";
-
-                } else {
-
-                    chartStatusText =
-                            "LAST REAL DATA • " +
-                                    cachedTime;
-                }
+                statusText =
+                        cached.isEmpty()
+                                ? "LAST MARKET DATA"
+                                : "LAST REAL DATA • " +
+                                cached;
             }
 
             String jsData =
@@ -2938,16 +2720,18 @@ public class MainActivity extends AppCompatActivity {
                             );
 
             String jsSymbol =
-                    chartSymbol.replace(
-                            "'",
-                            "\\'"
-                    );
+                    chartSymbol
+                            .replace(
+                                    "'",
+                                    "\\'"
+                            );
 
             String jsStatus =
-                    chartStatusText.replace(
-                            "'",
-                            "\\'"
-                    );
+                    statusText
+                            .replace(
+                                    "'",
+                                    "\\'"
+                            );
 
             String javascript =
                     "setChartData(" +
@@ -2976,7 +2760,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
 
             chartWebView.evaluateJavascript(
-                    "setStatus('CHART DATA ERROR');",
+                    "setChartMessage('CHART DATA ERROR');",
                     null
             );
         }
@@ -3015,11 +2799,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void startLivePriceConnections() {
 
-        String apiKey = getApiKey();
+        String apiKey =
+                getApiKey();
 
         if (apiKey == null ||
                 apiKey.trim().isEmpty()) {
-
             return;
         }
 
@@ -3062,8 +2846,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateBestSignalDisplay() {
 
-        SignalResult best = null;
-        String bestSymbol = null;
+        SignalResult best=null;
+        String bestSymbol=null;
 
         for (String symbol : SYMBOLS) {
 
@@ -3078,8 +2862,8 @@ public class MainActivity extends AppCompatActivity {
                     result.confidence >
                             best.confidence) {
 
-                best = result;
-                bestSymbol = symbol;
+                best=result;
+                bestSymbol=symbol;
             }
         }
 
@@ -3211,10 +2995,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (signalStatus != null) {
-
-            signalStatus.setText(
-                    best.status
-            );
+            signalStatus.setText(best.status);
         }
 
         if (signalTime != null) {
@@ -3233,33 +3014,24 @@ public class MainActivity extends AppCompatActivity {
 
         if (signalResult != null) {
 
-            if (best.resultReason == null ||
-                    best.resultReason.isEmpty()) {
-
-                signalResult.setText(
-                        "Signal active"
-                );
-
-            } else {
-
-                signalResult.setText(
-                        best.resultReason
-                );
-            }
+            signalResult.setText(
+                    best.resultReason == null ||
+                            best.resultReason.isEmpty()
+                            ? "Signal active"
+                            : best.resultReason
+            );
         }
 
         if (bestSymbol != null &&
                 "ALL".equals(selectedMarket)) {
 
-            chartSymbol = bestSymbol;
+            chartSymbol=bestSymbol;
 
             updateChart();
         }
     }
 
-    private String formatPrice(
-            double value
-    ) {
+    private String formatPrice(double value) {
 
         if (value <= 0) {
             return "-";
@@ -3455,8 +3227,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 runChartJavaScript(
                                         "setLowerIndicator(" +
-                                                "lowerIndicator===" +
-                                                "'STOCHASTIC'" +
+                                                "lowerIndicator==='STOCHASTIC'" +
                                                 "? 'NONE' : 'STOCHASTIC'" +
                                                 ");"
                                 );
@@ -3566,14 +3337,13 @@ public class MainActivity extends AppCompatActivity {
         if (chartFullscreen ||
                 chartWorkspace == null ||
                 mainContent == null) {
-
             return;
         }
 
-        chartFullscreen = true;
+        chartFullscreen=true;
 
-        for (int i = 0;
-             i < mainContent.getChildCount();
+        for (int i=0;
+             i<mainContent.getChildCount();
              i++) {
 
             View child =
@@ -3609,15 +3379,6 @@ public class MainActivity extends AppCompatActivity {
             chartWorkspace.requestLayout();
         }
 
-        if (mainScroll != null) {
-
-            mainScroll.setFillViewport(true);
-
-            mainScroll.setVerticalScrollBarEnabled(
-                    false
-            );
-        }
-
         getWindow().setFlags(
                 WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -3639,7 +3400,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (fullscreenButton != null) {
-
             fullscreenButton.setText("EXIT");
         }
 
@@ -3667,20 +3427,19 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        chartFullscreen = false;
+        chartFullscreen=false;
 
         if (mainContent != null) {
 
-            for (int i = 0;
-                 i < mainContent.getChildCount();
+            for (int i=0;
+                 i<mainContent.getChildCount();
                  i++) {
 
-                View child =
-                        mainContent.getChildAt(i);
-
-                child.setVisibility(
-                        View.VISIBLE
-                );
+                mainContent
+                        .getChildAt(i)
+                        .setVisibility(
+                                View.VISIBLE
+                        );
             }
         }
 
@@ -3701,8 +3460,7 @@ public class MainActivity extends AppCompatActivity {
             chartWorkspace
                     .getLayoutParams()
                     .height =
-                    android.view.ViewGroup
-                            .LayoutParams
+                    ViewGroup.LayoutParams
                             .WRAP_CONTENT;
 
             chartWorkspace.requestLayout();
@@ -3723,7 +3481,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (fullscreenButton != null) {
-
             fullscreenButton.setText("FULL");
         }
 
@@ -3745,7 +3502,7 @@ public class MainActivity extends AppCompatActivity {
                         .density;
 
         return Math.round(
-                dp * density
+                dp*density
         );
     }
 
