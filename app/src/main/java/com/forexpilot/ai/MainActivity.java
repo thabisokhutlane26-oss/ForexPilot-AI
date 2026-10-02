@@ -847,12 +847,6 @@ public class MainActivity extends AppCompatActivity {
 
             updateChart();
 
-            /*
-             * IMPORTANT:
-             * Market is closed, but we still request
-             * real historical candle data for the chart.
-             * This does NOT create a signal.
-             */
             requestChartCandles();
 
             return;
@@ -869,11 +863,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (!isForexWeekdayOpen()) {
 
-            /*
-             * Do not generate signals while closed.
-             * But keep the chart supplied with real
-             * historical Twelve Data candles.
-             */
             requestChartCandles();
 
             if (updated != null) {
@@ -960,40 +949,29 @@ public class MainActivity extends AppCompatActivity {
             );
         }
 
-        /*
-         * Also make sure the selected chart has
-         * chart-sized real candle data.
-         */
         requestChartCandles();
 
         updateChart();
     }
 
     private String getApiKey() {
-    String buildKey = BuildConfig.TWELVE_DATA_API_KEY;
 
-    if (buildKey != null && !buildKey.trim().isEmpty()) {
-        return buildKey.trim();
+        String buildKey =
+                BuildConfig.TWELVE_DATA_API_KEY;
+
+        if (buildKey != null &&
+                !buildKey.trim().isEmpty()) {
+
+            return buildKey.trim();
+        }
+
+        return preferences
+                .getString(
+                        "api_key",
+                        ""
+                )
+                .trim();
     }
-
-    return preferences.getString("api_key", "").trim();
-  }
- 
-    /*
-     * =========================================================
-     * CHART-ONLY TWELVE DATA REQUEST
-     * =========================================================
-     *
-     * This is the important fix.
-     *
-     * It uses TwelveDataClient.chartCandles(), which requests
-     * real historical candles.
-     *
-     * It DOES NOT call processCurrentSignal().
-     *
-     * Therefore it can safely run when the Forex market is
-     * closed without creating a new BUY/SELL signal.
-     */
 
     private void requestChartCandles() {
 
@@ -1074,10 +1052,6 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void price(double price) {
-            /*
-             * Chart historical data request does not
-             * need a price WebSocket.
-             */
         }
 
         @Override
@@ -1116,11 +1090,6 @@ public class MainActivity extends AppCompatActivity {
 
             runOnUiThread(() -> {
 
-                /*
-                 * Only accept the result if the user
-                 * is still viewing the same pair and
-                 * timeframe.
-                 */
                 if (!symbol.equals(chartSymbol) ||
                         !timeframe.equals(selectedTimeframe)) {
 
@@ -1596,6 +1565,12 @@ public class MainActivity extends AppCompatActivity {
                 safeTimeframe;
     }
 
+    /*
+     * =========================================================
+     * CACHE REAL CANDLE TIMESTAMPS
+     * =========================================================
+     */
+
     private void saveCachedCandles(
             String symbol,
             List<Candle> candles
@@ -1628,10 +1603,34 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject object =
                         new JSONObject();
 
-                object.put("open", c.open);
-                object.put("high", c.high);
-                object.put("low", c.low);
-                object.put("close", c.close);
+                /*
+                 * IMPORTANT:
+                 * Save the REAL Twelve Data timestamp.
+                 */
+                object.put(
+                        "timestamp",
+                        c.timestamp
+                );
+
+                object.put(
+                        "open",
+                        c.open
+                );
+
+                object.put(
+                        "high",
+                        c.high
+                );
+
+                object.put(
+                        "low",
+                        c.low
+                );
+
+                object.put(
+                        "close",
+                        c.close
+                );
 
                 array.put(object);
             }
@@ -1686,19 +1685,60 @@ public class MainActivity extends AppCompatActivity {
             JSONArray array =
                     new JSONArray(json);
 
-            for (int i=0;
-                 i<array.length();
+            for (int i = 0;
+                 i < array.length();
                  i++) {
 
                 JSONObject object =
                         array.getJSONObject(i);
 
+                /*
+                 * New cache format:
+                 * timestamp + OHLC.
+                 */
+                if (!object.has("timestamp")) {
+
+                    /*
+                     * Old cached candles were created
+                     * before timestamps were added.
+                     *
+                     * Do not load them because their
+                     * timestamps are not real.
+                     */
+                    continue;
+                }
+
+                long timestamp =
+                        object.getLong(
+                                "timestamp"
+                        );
+
+                double open =
+                        object.getDouble("open");
+
+                double high =
+                        object.getDouble("high");
+
+                double low =
+                        object.getDouble("low");
+
+                double close =
+                        object.getDouble("close");
+
+                /*
+                 * Ignore invalid timestamp entries.
+                 */
+                if (timestamp <= 0) {
+                    continue;
+                }
+
                 result.add(
                         new Candle(
-                                object.getDouble("open"),
-                                object.getDouble("high"),
-                                object.getDouble("low"),
-                                object.getDouble("close")
+                                timestamp,
+                                open,
+                                high,
+                                low,
+                                close
                         )
                 );
             }
@@ -2083,6 +2123,7 @@ public class MainActivity extends AppCompatActivity {
                 "index:k," +
                 "value:rsi" +
                 "});" +
+
                 "}" +
 
                 "return result;" +
@@ -2091,6 +2132,7 @@ public class MainActivity extends AppCompatActivity {
                 "function calculateATR(data,period){" +
 
                 "var result=[];" +
+
                 "if(!data||data.length<=period)return result;" +
 
                 "var trs=[];" +
@@ -2374,6 +2416,7 @@ public class MainActivity extends AppCompatActivity {
                 "}else{" +
                 "ctx.lineTo(x,y);" +
                 "}" +
+
                 "}" +
 
                 "ctx.stroke();" +
@@ -2396,7 +2439,6 @@ public class MainActivity extends AppCompatActivity {
                 "}" +
 
                 "var lowerVisible=lowerIndicator!=='NONE';" +
-
                 "var lowerHeight=lowerVisible?h*0.28:0;" +
                 "var top=28;" +
                 "var bottom=h-lowerHeight-25;" +
@@ -2404,7 +2446,6 @@ public class MainActivity extends AppCompatActivity {
                 "var right=w-70;" +
 
                 "var visibleData=currentData;" +
-
                 "var range=priceRange(visibleData);" +
 
                 "drawGrid(ctx,w,h,top,bottom,left,right,range);" +
@@ -2885,38 +2926,36 @@ public class MainActivity extends AppCompatActivity {
             JSONArray array =
                     new JSONArray();
 
-            long nowSeconds =
-                    System.currentTimeMillis()
-                            / 1000L;
+            /*
+             * IMPORTANT:
+             * Use the REAL timestamp supplied by
+             * Twelve Data through Candle.timestamp.
+             *
+             * We are no longer creating synthetic
+             * timestamps here.
+             */
 
-            long intervalSeconds =
-                    timeframeSeconds(
-                            selectedTimeframe
-                    );
-
-            long firstTime =
-                    nowSeconds -
-                            (
-                                    (long) candles.size()
-                                            *
-                                            intervalSeconds
-                            );
-
-            for (int i=0;
-                 i<candles.size();
+            for (int i = 0;
+                 i < candles.size();
                  i++) {
 
                 Candle candle =
                         candles.get(i);
+
+                /*
+                 * Skip candles that somehow have no
+                 * valid real timestamp.
+                 */
+                if (candle.timestamp <= 0) {
+                    continue;
+                }
 
                 JSONObject item =
                         new JSONObject();
 
                 item.put(
                         "time",
-                        firstTime +
-                                ((long)i *
-                                        intervalSeconds)
+                        candle.timestamp
                 );
 
                 item.put(
@@ -2942,14 +2981,24 @@ public class MainActivity extends AppCompatActivity {
                 array.put(item);
             }
 
+            if (array.length() == 0) {
+
+                chartWebView.evaluateJavascript(
+                        "setChartMessage('WAITING FOR REAL TIMESTAMPS');",
+                        null
+                );
+
+                return;
+            }
+
             SignalResult result =
                     currentSignals.get(chartSymbol);
 
-            double entry=0;
-            double sl=0;
-            double tp1=0;
-            double tp2=0;
-            double tp3=0;
+            double entry = 0;
+            double sl = 0;
+            double tp1 = 0;
+            double tp2 = 0;
+            double tp3 = 0;
 
             if (result != null &&
                     (
@@ -2957,11 +3006,11 @@ public class MainActivity extends AppCompatActivity {
                             "SELL".equals(result.action)
                     )) {
 
-                entry=result.entry;
-                sl=result.sl;
-                tp1=result.tp1;
-                tp2=result.tp2;
-                tp3=result.tp3;
+                entry = result.entry;
+                sl = result.sl;
+                tp1 = result.tp1;
+                tp2 = result.tp2;
+                tp3 = result.tp3;
             }
 
             long cachedAt =
@@ -3126,8 +3175,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateBestSignalDisplay() {
 
-        SignalResult best=null;
-        String bestSymbol=null;
+        SignalResult best = null;
+        String bestSymbol = null;
 
         for (String symbol : SYMBOLS) {
 
@@ -3142,8 +3191,8 @@ public class MainActivity extends AppCompatActivity {
                     result.confidence >
                             best.confidence) {
 
-                best=result;
-                bestSymbol=symbol;
+                best = result;
+                bestSymbol = symbol;
             }
         }
 
@@ -3305,7 +3354,7 @@ public class MainActivity extends AppCompatActivity {
         if (bestSymbol != null &&
                 "ALL".equals(selectedMarket)) {
 
-            chartSymbol=bestSymbol;
+            chartSymbol = bestSymbol;
 
             updateChart();
         }
@@ -3620,10 +3669,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        chartFullscreen=true;
+        chartFullscreen = true;
 
-        for (int i=0;
-             i<mainContent.getChildCount();
+        for (int i = 0;
+             i < mainContent.getChildCount();
              i++) {
 
             View child =
@@ -3707,12 +3756,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        chartFullscreen=false;
+        chartFullscreen = false;
 
         if (mainContent != null) {
 
-            for (int i=0;
-                 i<mainContent.getChildCount();
+            for (int i = 0;
+                 i < mainContent.getChildCount();
                  i++) {
 
                 mainContent
@@ -3782,7 +3831,7 @@ public class MainActivity extends AppCompatActivity {
                         .density;
 
         return Math.round(
-                dp*density
+                dp * density
         );
     }
 
@@ -3857,10 +3906,6 @@ public class MainActivity extends AppCompatActivity {
 
         } else {
 
-            /*
-             * If the app resumes while Forex is closed,
-             * make sure the selected chart gets real data.
-             */
             requestChartCandles();
         }
     }
