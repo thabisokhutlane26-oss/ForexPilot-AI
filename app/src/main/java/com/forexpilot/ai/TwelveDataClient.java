@@ -13,12 +13,14 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 public class TwelveDataClient {
@@ -40,16 +42,8 @@ public class TwelveDataClient {
 
     private static final int NORMAL_CANDLE_SIZE = 100;
 
-    /*
-     * 5,000 candles can consume unnecessary API resources.
-     * 200 is enough for the app's chart/history display.
-     */
     private static final int CHART_CANDLE_SIZE = 200;
 
-    /*
-     * Prevent identical candle requests from being sent
-     * repeatedly within this period.
-     */
     private static final long REQUEST_COOLDOWN_MS = 30_000L;
 
     /*
@@ -72,21 +66,9 @@ public class TwelveDataClient {
 
     private String currentApiKey = "";
 
-    /*
-     * Tracks the last successful/requested candle request.
-     *
-     * Key:
-     * SYMBOL|INTERVAL
-     */
     private final Map<String, Long> lastRequestTimes =
             new HashMap<>();
 
-    /*
-     * Tracks requests that are currently running.
-     *
-     * This prevents duplicate API calls when refreshes happen
-     * close together.
-     */
     private final Set<String> requestsInProgress =
             new HashSet<>();
 
@@ -143,13 +125,6 @@ public class TwelveDataClient {
         String cleanSymbol = symbol.trim();
         String cleanApiKey = apiKey.trim();
 
-        /*
-         * If we are already connected to the exact same
-         * symbol using the same API key, do not reconnect.
-         *
-         * Reconnecting unnecessarily wastes network/API
-         * resources.
-         */
         if (connected
                 && webSocket != null
                 && cleanSymbol.equals(currentSymbol)
@@ -187,7 +162,10 @@ public class TwelveDataClient {
         } catch (Exception exception) {
 
             callback.error(
-                    "Unable to prepare API connection."
+                    safeMessage(
+                            exception,
+                            "Unable to prepare API connection."
+                    )
             );
 
             return;
@@ -304,9 +282,8 @@ public class TwelveDataClient {
 
                                 } catch (Exception ignored) {
                                     /*
-                                     * Ignore malformed individual
-                                     * WebSocket messages so one bad
-                                     * message does not kill the stream.
+                                     * Ignore malformed WebSocket
+                                     * messages.
                                      */
                                 }
                             }
@@ -386,12 +363,6 @@ public class TwelveDataClient {
      * ========================================================
      * CHART HISTORY REQUEST
      * ========================================================
-     *
-     * We intentionally use 200 instead of 5,000.
-     *
-     * The app does not need thousands of candles just to
-     * display a useful mobile chart.
-     * ========================================================
      */
 
     public void chartCandles(
@@ -466,10 +437,6 @@ public class TwelveDataClient {
 
         synchronized (this) {
 
-            /*
-             * If the same request is already running,
-             * don't send another one.
-             */
             if (requestsInProgress.contains(requestKey)) {
 
                 return;
@@ -483,10 +450,6 @@ public class TwelveDataClient {
                             requestKey
                     );
 
-            /*
-             * If the same request was made recently,
-             * skip it.
-             */
             if (lastRequest != null
                     && now - lastRequest
                     < REQUEST_COOLDOWN_MS) {
@@ -614,9 +577,9 @@ public class TwelveDataClient {
 
                             /*
                              * Twelve Data may return HTTP 200
-                             * while putting an API error inside
-                             * the JSON response.
+                             * with an error object.
                              */
+
                             if (!object.has("values")) {
 
                                 String message =
@@ -673,6 +636,35 @@ public class TwelveDataClient {
                             List<Candle> list =
                                     new ArrayList<>();
 
+                            /*
+                             * ====================================================
+                             * REAL TWELVE DATA DATETIME
+                             * ====================================================
+                             *
+                             * Twelve Data normally returns:
+                             *
+                             * "datetime": "2026-10-02 19:15:00"
+                             *
+                             * We convert that exact market candle time
+                             * into Unix seconds.
+                             */
+
+                            SimpleDateFormat parser =
+                                    new SimpleDateFormat(
+                                            "yyyy-MM-dd HH:mm:ss",
+                                            java.util.Locale.US
+                                    );
+
+                            /*
+                             * Twelve Data candle timestamps are
+                             * interpreted in the timezone returned
+                             * by the API. For the standard forex
+                             * time-series response this is UTC.
+                             */
+                            parser.setTimeZone(
+                                    TimeZone.getTimeZone("UTC")
+                            );
+
                             for (
                                     int i = 0;
                                     i < values.length();
@@ -681,6 +673,12 @@ public class TwelveDataClient {
 
                                 JSONObject candle =
                                         values.getJSONObject(i);
+
+                                String datetime =
+                                        candle.optString(
+                                                "datetime",
+                                                ""
+                                        );
 
                                 double open =
                                         candle.optDouble(
@@ -706,7 +704,8 @@ public class TwelveDataClient {
                                                 0
                                         );
 
-                                if (open <= 0
+                                if (datetime.isEmpty()
+                                        || open <= 0
                                         || high <= 0
                                         || low <= 0
                                         || close <= 0) {
@@ -714,8 +713,36 @@ public class TwelveDataClient {
                                     continue;
                                 }
 
+                                long timestamp;
+
+                                try {
+
+                                    Date parsedDate =
+                                            parser.parse(
+                                                    datetime
+                                            );
+
+                                    if (parsedDate == null) {
+                                        continue;
+                                    }
+
+                                    timestamp =
+                                            parsedDate.getTime()
+                                                    / 1000L;
+
+                                } catch (Exception dateException) {
+
+                                    /*
+                                     * If one candle has a bad
+                                     * timestamp, skip only that
+                                     * candle.
+                                     */
+                                    continue;
+                                }
+
                                 list.add(
                                         new Candle(
+                                                timestamp,
                                                 open,
                                                 high,
                                                 low,
@@ -750,6 +777,7 @@ public class TwelveDataClient {
                         } finally {
 
                             synchronized (TwelveDataClient.this) {
+
                                 requestsInProgress.remove(
                                         requestKey
                                 );
@@ -784,9 +812,6 @@ public class TwelveDataClient {
             webSocket = null;
         }
 
-        /*
-         * Clear request state when this client is closed.
-         */
         requestsInProgress.clear();
         lastRequestTimes.clear();
     }
