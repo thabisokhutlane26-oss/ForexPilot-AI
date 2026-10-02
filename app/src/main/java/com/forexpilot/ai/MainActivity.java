@@ -498,7 +498,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (chartStatus != null) {
             chartStatus.setText(
-                    "Professional chart • " +
+                    "TradingView-style chart • " +
                             selectedTimeframe
             );
         }
@@ -1150,29 +1150,13 @@ public class MainActivity extends AppCompatActivity {
                 if (chartWebView != null &&
                         chartReady) {
 
-                    String safe =
-                            safeMessage
-                                    .replace(
-                                            "\\",
-                                            "\\\\"
-                                    )
-                                    .replace(
-                                            "'",
-                                            "\\'"
-                                    )
-                                    .replace(
-                                            "\n",
-                                            " "
-                                    )
-                                    .replace(
-                                            "\r",
-                                            " "
-                                    );
-
                     runChartJavaScript(
                             "setChartMessage(" +
-                                    "'DATA ERROR • " +
-                                    safe +
+                                    "'" +
+                                    escapeJavaScript(
+                                            "DATA ERROR • " +
+                                                    safeMessage
+                                    ) +
                                     "'" +
                                     ");"
                     );
@@ -1278,29 +1262,15 @@ public class MainActivity extends AppCompatActivity {
                     String safe =
                             message == null
                                     ? "UNKNOWN DATA ERROR"
-                                    : message
-                                    .replace(
-                                            "\\",
-                                            "\\\\"
-                                    )
-                                    .replace(
-                                            "'",
-                                            "\\'"
-                                    )
-                                    .replace(
-                                            "\n",
-                                            " "
-                                    )
-                                    .replace(
-                                            "\r",
-                                            " "
-                                    );
+                                    : message;
 
-                    chartWebView.evaluateJavascript(
-                            "setChartMessage('DATA ERROR: " +
-                                    safe +
-                                    "');",
-                            null
+                    runChartJavaScript(
+                            "setChartMessage('" +
+                                    escapeJavaScript(
+                                            "DATA ERROR: " +
+                                                    safe
+                                    ) +
+                                    "');"
                     );
                 }
             });
@@ -1565,12 +1535,6 @@ public class MainActivity extends AppCompatActivity {
                 safeTimeframe;
     }
 
-    /*
-     * =========================================================
-     * CACHE REAL CANDLE TIMESTAMPS
-     * =========================================================
-     */
-
     private void saveCachedCandles(
             String symbol,
             List<Candle> candles
@@ -1603,10 +1567,6 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject object =
                         new JSONObject();
 
-                /*
-                 * IMPORTANT:
-                 * Save the REAL Twelve Data timestamp.
-                 */
                 object.put(
                         "timestamp",
                         c.timestamp
@@ -1692,25 +1652,14 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject object =
                         array.getJSONObject(i);
 
-                /*
-                 * New cache format:
-                 * timestamp + OHLC.
-                 */
                 if (!object.has("timestamp")) {
-
-                    /*
-                     * Old cached candles were created
-                     * before timestamps were added.
-                     *
-                     * Do not load them because their
-                     * timestamps are not real.
-                     */
                     continue;
                 }
 
                 long timestamp =
-                        object.getLong(
-                                "timestamp"
+                        object.optLong(
+                                "timestamp",
+                                0L
                         );
 
                 double open =
@@ -1725,9 +1674,6 @@ public class MainActivity extends AppCompatActivity {
                 double close =
                         object.getDouble("close");
 
-                /*
-                 * Ignore invalid timestamp entries.
-                 */
                 if (timestamp <= 0) {
                     continue;
                 }
@@ -1775,6 +1721,12 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
+    /*
+     * =========================================================
+     * LIGHTWEIGHT CHARTS
+     * =========================================================
+     */
+
     private void setupChart() {
 
         if (chartWebView == null) {
@@ -1819,7 +1771,7 @@ public class MainActivity extends AppCompatActivity {
         );
 
         chartWebView.loadDataWithBaseURL(
-                null,
+                "https://unpkg.com/",
                 createChartHtml(),
                 "text/html",
                 "UTF-8",
@@ -1832,9 +1784,12 @@ public class MainActivity extends AppCompatActivity {
         return "<!DOCTYPE html>" +
                 "<html>" +
                 "<head>" +
-                "<meta name='viewport' content='width=device-width,initial-scale=1.0,user-scalable=no'>" +
+
+                "<meta name='viewport' " +
+                "content='width=device-width,initial-scale=1.0,user-scalable=no'>" +
 
                 "<style>" +
+
                 "html,body{" +
                 "margin:0;" +
                 "padding:0;" +
@@ -1850,34 +1805,26 @@ public class MainActivity extends AppCompatActivity {
                 "top:0;" +
                 "right:0;" +
                 "bottom:0;" +
-                "display:flex;" +
-                "flex-direction:column;" +
                 "background:#0B0F14;" +
                 "}" +
 
-                "#chartArea{" +
-                "position:relative;" +
-                "width:100%;" +
-                "height:100%;" +
-                "min-height:180px;" +
-                "background:#0B0F14;" +
-                "}" +
-
-                "#mainCanvas{" +
+                "#chart{" +
                 "position:absolute;" +
                 "left:0;" +
                 "top:0;" +
-                "width:100%;" +
-                "height:100%;" +
+                "right:0;" +
+                "bottom:0;" +
+                "background:#0B0F14;" +
                 "}" +
 
-                "#lowerCanvas{" +
+                "#lower{" +
                 "position:absolute;" +
                 "left:0;" +
+                "right:0;" +
                 "bottom:0;" +
-                "width:100%;" +
-                "height:28%;" +
+                "height:25%;" +
                 "display:none;" +
+                "background:#0B0F14;" +
                 "border-top:1px solid #27303B;" +
                 "}" +
 
@@ -1885,141 +1832,280 @@ public class MainActivity extends AppCompatActivity {
                 "position:absolute;" +
                 "left:8px;" +
                 "top:8px;" +
-                "z-index:20;" +
+                "z-index:50;" +
                 "padding:5px 8px;" +
                 "border-radius:4px;" +
                 "font-family:Arial,sans-serif;" +
                 "font-size:11px;" +
                 "color:#AEB8C5;" +
-                "background:rgba(11,15,20,.90);" +
+                "background:rgba(11,15,20,.88);" +
+                "pointer-events:none;" +
                 "}" +
 
-                "#indicatorTitle{" +
+                "#crosshairInfo{" +
                 "position:absolute;" +
-                "left:8px;" +
-                "bottom:4px;" +
-                "z-index:20;" +
+                "right:78px;" +
+                "top:8px;" +
+                "z-index:50;" +
                 "font-family:Arial,sans-serif;" +
                 "font-size:10px;" +
                 "color:#AEB8C5;" +
-                "background:rgba(11,15,20,.90);" +
-                "padding:3px 6px;" +
+                "background:rgba(11,15,20,.88);" +
+                "padding:5px 7px;" +
+                "display:none;" +
+                "pointer-events:none;" +
                 "}" +
 
                 "</style>" +
+
+                "<script src='https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js'>" +
+                "</script>" +
+
                 "</head>" +
 
                 "<body>" +
 
                 "<div id='root'>" +
-
-                "<div id='chartArea'>" +
-
-                "<canvas id='mainCanvas'></canvas>" +
-
-                "<canvas id='lowerCanvas'></canvas>" +
-
-                "<div id='indicatorTitle'></div>" +
-
+                "<div id='chart'></div>" +
+                "<div id='lower'></div>" +
+                "<div id='status'>Loading chart...</div>" +
+                "<div id='crosshairInfo'></div>" +
                 "</div>" +
-
-                "</div>" +
-
-                "<div id='status'>Loading market chart...</div>" +
 
                 "<script>" +
 
+                "var chart=null;" +
+                "var candleSeries=null;" +
+
+                "var lowerChart=null;" +
+                "var rsiSeries=null;" +
+                "var macdSeries=null;" +
+                "var atrSeries=null;" +
+                "var stochasticSeries=null;" +
+
                 "var currentData=[];" +
-                "var signalLines=[];" +
-                "var drawingLines=[];" +
+                "var currentSymbol='';" +
+
+                "var entryPrice=0;" +
+                "var slPrice=0;" +
+                "var tp1Price=0;" +
+                "var tp2Price=0;" +
+                "var tp3Price=0;" +
+
+                "var entryLine=null;" +
+                "var slLine=null;" +
+                "var tp1Line=null;" +
+                "var tp2Line=null;" +
+                "var tp3Line=null;" +
+
+                "var ema20Series=null;" +
+                "var ema50Series=null;" +
+                "var sma200Series=null;" +
+                "var bbUpperSeries=null;" +
+                "var bbMiddleSeries=null;" +
+                "var bbLowerSeries=null;" +
 
                 "var ema20Enabled=false;" +
                 "var ema50Enabled=false;" +
                 "var sma200Enabled=false;" +
                 "var bollingerEnabled=false;" +
-
                 "var lowerIndicator='NONE';" +
-                "var drawingMode=false;" +
 
-                "var mainCanvas=null;" +
-                "var lowerCanvas=null;" +
+                "var drawingMode=false;" +
+                "var drawingLines=[];" +
 
                 "function setChartMessage(message){" +
-                "var s=document.getElementById('status');" +
-                "s.innerText=message;" +
+                "var el=document.getElementById('status');" +
+                "if(el)el.innerText=message;" +
                 "}" +
 
                 "function setStatus(message){" +
                 "setChartMessage(message);" +
                 "}" +
 
-                "function resizeCanvas(canvas){" +
+                "function cleanData(data){" +
 
-                "if(!canvas)return;" +
+                "var result=[];" +
+                "var seen={};" +
 
-                "var rect=canvas.getBoundingClientRect();" +
-
-                "var ratio=window.devicePixelRatio||1;" +
-
-                "canvas.width=Math.max(1,Math.floor(rect.width*ratio));" +
-                "canvas.height=Math.max(1,Math.floor(rect.height*ratio));" +
-
-                "var ctx=canvas.getContext('2d');" +
-
-                "ctx.setTransform(ratio,0,0,ratio,0,0);" +
-                "}" +
-
-                "function resizeAll(){" +
-
-                "resizeCanvas(mainCanvas);" +
-                "resizeCanvas(lowerCanvas);" +
-
-                "if(currentData.length>0){" +
-                "drawEverything();" +
-                "}" +
-                "}" +
-
-                "function priceRange(data){" +
-
-                "var high=-Infinity;" +
-                "var low=Infinity;" +
+                "if(!data)return result;" +
 
                 "for(var i=0;i<data.length;i++){" +
 
-                "high=Math.max(high,Number(data[i].high));" +
-                "low=Math.min(low,Number(data[i].low));" +
+                "var c=data[i];" +
+                "var t=Number(c.time);" +
+
+                "if(!isFinite(t)||t<=0)continue;" +
+
+                "if(seen[t])continue;" +
+
+                "seen[t]=true;" +
+
+                "result.push({" +
+                "time:Math.floor(t)," +
+                "open:Number(c.open)," +
+                "high:Number(c.high)," +
+                "low:Number(c.low)," +
+                "close:Number(c.close)" +
+                "});" +
 
                 "}" +
 
-                "var spread=high-low;" +
+                "result.sort(function(a,b){" +
+                "return a.time-b.time;" +
+                "});" +
 
-                "if(!isFinite(spread)||spread<=0){" +
-                "spread=Math.max(Math.abs(high)*0.001,0.0001);" +
+                "return result;" +
                 "}" +
+
+                "function chartOptions(){" +
 
                 "return {" +
-                "high:high+spread*0.08," +
-                "low:low-spread*0.08" +
-                "};" +
+
+                "layout:{" +
+                "background:{type:'solid',color:'#0B0F14'}," +
+                "textColor:'#AEB8C5'," +
+                "fontFamily:'Arial,sans-serif'" +
+                "}," +
+
+                "grid:{" +
+                "vertLines:{color:'#18212C'}," +
+                "horzLines:{color:'#18212C'}" +
+                "}," +
+
+                "rightPriceScale:{" +
+                "borderColor:'#27303B'," +
+                "textColor:'#AEB8C5'," +
+                "autoScale:true" +
+                "}," +
+
+                "timeScale:{" +
+                "borderColor:'#27303B'," +
+                "timeVisible:true," +
+                "secondsVisible:false," +
+                "rightOffset:5," +
+                "barSpacing:7," +
+                "minBarSpacing:2" +
+                "}," +
+
+                "crosshair:{" +
+                "mode:0," +
+                "vertLine:{" +
+                "color:'#75808F'," +
+                "width:1," +
+                "style:2," +
+                "labelBackgroundColor:'#374151'" +
+                "}," +
+                "horzLine:{" +
+                "color:'#75808F'," +
+                "width:1," +
+                "style:2," +
+                "labelBackgroundColor:'#374151'" +
+                "}" +
+                "}," +
+
+                "handleScroll:{" +
+                "mouseWheel:true," +
+                "pressedMouseMove:true," +
+                "horzTouchDrag:true," +
+                "vertTouchDrag:false" +
+                "}," +
+
+                "handleScale:{" +
+                "mouseWheel:true," +
+                "pinch:true," +
+                "axisPressedMouseMove:true," +
+                "axisDoubleClickReset:true" +
                 "}" +
 
-                "function mapPrice(price,range,top,bottom){" +
+                "};" +
 
-                "if(range.high===range.low)return bottom;" +
+                "}" +
 
-                "return top+" +
-                "((range.high-price)/" +
-                "(range.high-range.low))*"+
-                "(bottom-top);" +
+                "function createChart(){" +
+
+                "var container=document.getElementById('chart');" +
+
+                "chart=LightweightCharts.createChart(" +
+                "container," +
+                "chartOptions()" +
+                ");" +
+
+                "candleSeries=chart.addSeries(" +
+                "LightweightCharts.CandlestickSeries," +
+                "{" +
+                "upColor:'#16C784'," +
+                "downColor:'#EA3943'," +
+                "borderUpColor:'#16C784'," +
+                "borderDownColor:'#EA3943'," +
+                "wickUpColor:'#16C784'," +
+                "wickDownColor:'#EA3943'," +
+                "priceLineVisible:false" +
+                "}" +
+                ");" +
+
+                "chart.subscribeCrosshairMove(function(param){" +
+
+                "var info=document.getElementById('crosshairInfo');" +
+
+                "if(!info)return;" +
+
+                "if(!param||!param.time||!param.seriesData){" +
+                "info.style.display='none';" +
+                "return;" +
+                "}" +
+
+                "var item=param.seriesData.get(candleSeries);" +
+
+                "if(!item){" +
+                "info.style.display='none';" +
+                "return;" +
+                "}" +
+
+                "var d=new Date(Number(param.time)*1000);" +
+
+                "var text=" +
+                "d.toLocaleString() +" +
+                "'  O '+Number(item.open).toFixed(5)+" +
+                "' H '+Number(item.high).toFixed(5)+" +
+                "' L '+Number(item.low).toFixed(5)+" +
+                "' C '+Number(item.close).toFixed(5);" +
+
+                "info.innerText=text;" +
+                "info.style.display='block';" +
+
+                "});" +
+
+                "chart.timeScale().fitContent();" +
+
+                "window.addEventListener('resize',resizeCharts);" +
+
+                "setChartMessage(" +
+                "'CHART READY • WAITING FOR MARKET DATA'" +
+                ");" +
+
+                "}" +
+
+                "function resizeCharts(){" +
+
+                "if(chart){" +
+                "var el=document.getElementById('chart');" +
+                "chart.resize(el.clientWidth,el.clientHeight);" +
+                "}" +
+
+                "if(lowerChart){" +
+                "var low=document.getElementById('lower');" +
+                "lowerChart.resize(low.clientWidth,low.clientHeight);" +
+                "}" +
+
                 "}" +
 
                 "function calculateEMA(data,period){" +
 
                 "var result=[];" +
 
-                "if(!data||data.length<period)return result;" +
+                "if(data.length<period)return result;" +
 
-                "var multiplier=2/(period+1);" +
                 "var sum=0;" +
 
                 "for(var i=0;i<period;i++){" +
@@ -2029,20 +2115,22 @@ public class MainActivity extends AppCompatActivity {
                 "var previous=sum/period;" +
 
                 "result.push({" +
-                "index:period-1," +
+                "time:data[period-1].time," +
                 "value:previous" +
                 "});" +
 
+                "var multiplier=2/(period+1);" +
+
                 "for(var j=period;j<data.length;j++){" +
 
-                "var close=Number(data[j].close);" +
-
-                "var value=((close-previous)*multiplier)+previous;" +
+                "var value=" +
+                "(Number(data[j].close)-previous)*multiplier+" +
+                "previous;" +
 
                 "previous=value;" +
 
                 "result.push({" +
-                "index:j," +
+                "time:data[j].time," +
                 "value:value" +
                 "});" +
 
@@ -2055,7 +2143,7 @@ public class MainActivity extends AppCompatActivity {
 
                 "var result=[];" +
 
-                "if(!data||data.length<period)return result;" +
+                "if(data.length<period)return result;" +
 
                 "for(var i=period-1;i<data.length;i++){" +
 
@@ -2066,7 +2154,7 @@ public class MainActivity extends AppCompatActivity {
                 "}" +
 
                 "result.push({" +
-                "index:i," +
+                "time:data[i].time," +
                 "value:sum/period" +
                 "});" +
 
@@ -2079,7 +2167,7 @@ public class MainActivity extends AppCompatActivity {
 
                 "var result=[];" +
 
-                "if(!data||data.length<=period)return result;" +
+                "if(data.length<=period)return result;" +
 
                 "var gains=0;" +
                 "var losses=0;" +
@@ -2101,7 +2189,7 @@ public class MainActivity extends AppCompatActivity {
                 "(100-(100/(1+(avgGain/avgLoss))));" +
 
                 "result.push({" +
-                "index:period," +
+                "time:data[period].time," +
                 "value:rsi" +
                 "});" +
 
@@ -2120,7 +2208,7 @@ public class MainActivity extends AppCompatActivity {
                 "(100-(100/(1+(avgGain/avgLoss))));" +
 
                 "result.push({" +
-                "index:k," +
+                "time:data[k].time," +
                 "value:rsi" +
                 "});" +
 
@@ -2133,7 +2221,7 @@ public class MainActivity extends AppCompatActivity {
 
                 "var result=[];" +
 
-                "if(!data||data.length<=period)return result;" +
+                "if(data.length<=period)return result;" +
 
                 "var trs=[];" +
 
@@ -2141,12 +2229,12 @@ public class MainActivity extends AppCompatActivity {
 
                 "var high=Number(data[i].high);" +
                 "var low=Number(data[i].low);" +
-                "var pc=Number(data[i-1].close);" +
+                "var previousClose=Number(data[i-1].close);" +
 
                 "trs.push(Math.max(" +
                 "high-low," +
-                "Math.abs(high-pc)," +
-                "Math.abs(low-pc)" +
+                "Math.abs(high-previousClose)," +
+                "Math.abs(low-previousClose)" +
                 "));" +
 
                 "}" +
@@ -2160,7 +2248,7 @@ public class MainActivity extends AppCompatActivity {
                 "var atr=sum/period;" +
 
                 "result.push({" +
-                "index:period," +
+                "time:data[period].time," +
                 "value:atr" +
                 "});" +
 
@@ -2169,7 +2257,7 @@ public class MainActivity extends AppCompatActivity {
                 "atr=((atr*(period-1))+trs[k])/period;" +
 
                 "result.push({" +
-                "index:k+1," +
+                "time:data[k+1].time," +
                 "value:atr" +
                 "});" +
 
@@ -2181,7 +2269,8 @@ public class MainActivity extends AppCompatActivity {
                 "function calculateStochastic(data,period){" +
 
                 "var result=[];" +
-                "if(!data||data.length<period)return result;" +
+
+                "if(data.length<period)return result;" +
 
                 "for(var i=period-1;i<data.length;i++){" +
 
@@ -2189,7 +2278,6 @@ public class MainActivity extends AppCompatActivity {
                 "var lowest=Infinity;" +
 
                 "for(var j=i-period+1;j<=i;j++){" +
-
                 "highest=Math.max(highest,Number(data[j].high));" +
                 "lowest=Math.min(lowest,Number(data[j].low));" +
                 "}" +
@@ -2201,7 +2289,7 @@ public class MainActivity extends AppCompatActivity {
                 "((close-lowest)/(highest-lowest))*100;" +
 
                 "result.push({" +
-                "index:i," +
+                "time:data[i].time," +
                 "value:value" +
                 "});" +
 
@@ -2210,106 +2298,14 @@ public class MainActivity extends AppCompatActivity {
                 "return result;" +
                 "}" +
 
-                "function calculateMACD(data){" +
-
-                "var result=[];" +
-
-                "var ema12=calculateEMA(data,12);" +
-                "var ema26=calculateEMA(data,26);" +
-
-                "var map12={};" +
-
-                "for(var i=0;i<ema12.length;i++){" +
-                "map12[ema12[i].index]=ema12[i].value;" +
-                "}" +
-
-                "for(var j=0;j<ema26.length;j++){" +
-
-                "var index=ema26[j].index;" +
-
-                "if(map12[index]!==undefined){" +
-
-                "result.push({" +
-                "index:index," +
-                "value:map12[index]-ema26[j].value" +
-                "});" +
-
-                "}" +
-
-                "}" +
-
-                "if(result.length<9)return {" +
-                "line:result," +
-                "signal:[]," +
-                "histogram:[]" +
-                "};" +
-
-                "var signal=[];" +
-                "var multiplier=2/10;" +
-                "var sum=0;" +
-
-                "for(var k=0;k<9;k++){" +
-                "sum+=result[k].value;" +
-                "}" +
-
-                "var previous=sum/9;" +
-
-                "signal.push({" +
-                "index:result[8].index," +
-                "value:previous" +
-                "});" +
-
-                "for(var n=9;n<result.length;n++){" +
-
-                "var value=((result[n].value-previous)*multiplier)+previous;" +
-                "previous=value;" +
-
-                "signal.push({" +
-                "index:result[n].index," +
-                "value:value" +
-                "});" +
-
-                "}" +
-
-                "var signalMap={};" +
-
-                "for(var p=0;p<signal.length;p++){" +
-                "signalMap[signal[p].index]=signal[p].value;" +
-                "}" +
-
-                "var histogram=[];" +
-
-                "for(var q=0;q<result.length;q++){" +
-
-                "var sv=signalMap[result[q].index];" +
-
-                "if(sv!==undefined){" +
-                "histogram.push({" +
-                "index:result[q].index," +
-                "value:result[q].value-sv" +
-                "});" +
-                "}" +
-                "}" +
-
-                "return {" +
-                "line:result," +
-                "signal:signal," +
-                "histogram:histogram" +
-                "};" +
-                "}" +
-
                 "function calculateBollinger(data,period,mult){" +
 
                 "var upper=[];" +
                 "var middle=[];" +
                 "var lower=[];" +
 
-                "if(!data||data.length<period){" +
-                "return {" +
-                "upper:upper," +
-                "middle:middle," +
-                "lower:lower" +
-                "};" +
+                "if(data.length<period){" +
+                "return {upper:upper,middle:middle,lower:lower};" +
                 "}" +
 
                 "for(var i=period-1;i<data.length;i++){" +
@@ -2324,26 +2320,24 @@ public class MainActivity extends AppCompatActivity {
                 "var variance=0;" +
 
                 "for(var k=i-period+1;k<=i;k++){" +
-
                 "var d=Number(data[k].close)-mean;" +
                 "variance+=d*d;" +
-
                 "}" +
 
                 "var sd=Math.sqrt(variance/period);" +
 
                 "upper.push({" +
-                "index:i," +
+                "time:data[i].time," +
                 "value:mean+(mult*sd)" +
                 "});" +
 
                 "middle.push({" +
-                "index:i," +
+                "time:data[i].time," +
                 "value:mean" +
                 "});" +
 
                 "lower.push({" +
-                "index:i," +
+                "time:data[i].time," +
                 "value:mean-(mult*sd)" +
                 "});" +
 
@@ -2354,405 +2348,482 @@ public class MainActivity extends AppCompatActivity {
                 "middle:middle," +
                 "lower:lower" +
                 "};" +
-                "}" +
-
-                "function drawGrid(ctx,w,h,top,bottom,left,right,range){" +
-
-                "ctx.strokeStyle='#18212C';" +
-                "ctx.lineWidth=1;" +
-
-                "for(var i=0;i<6;i++){" +
-
-                "var y=top+((bottom-top)/5)*i;" +
-
-                "ctx.beginPath();" +
-                "ctx.moveTo(left,y);" +
-                "ctx.lineTo(right,y);" +
-                "ctx.stroke();" +
-
-                "var price=range.high-" +
-                "((range.high-range.low)/5)*i;" +
-
-                "ctx.fillStyle='#718096';" +
-                "ctx.font='10px Arial';" +
-
-                "ctx.fillText(price.toFixed(5),right-62,y-2);" +
-                "}" +
-
-                "for(var j=0;j<7;j++){" +
-
-                "var x=left+((right-left)/6)*j;" +
-
-                "ctx.beginPath();" +
-                "ctx.moveTo(x,top);" +
-                "ctx.lineTo(x,bottom);" +
-                "ctx.stroke();" +
-                "}" +
-                "}" +
-
-                "function drawLineSeries(ctx,series,range,left,right,top,bottom,color,width){" +
-
-                "if(!series||series.length===0)return;" +
-
-                "ctx.strokeStyle=color;" +
-                "ctx.lineWidth=width;" +
-                "ctx.beginPath();" +
-
-                "var started=false;" +
-
-                "for(var i=0;i<series.length;i++){" +
-
-                "var item=series[i];" +
-
-                "var x=left+" +
-                "((right-left)*item.index/" +
-                "Math.max(1,currentData.length-1));" +
-
-                "var y=mapPrice(item.value,range,top,bottom);" +
-
-                "if(!started){" +
-                "ctx.moveTo(x,y);" +
-                "started=true;" +
-                "}else{" +
-                "ctx.lineTo(x,y);" +
-                "}" +
 
                 "}" +
 
-                "ctx.stroke();" +
+                "function clearPriceLines(){" +
+
+                "if(!candleSeries)return;" +
+
+                "if(entryLine)candleSeries.removePriceLine(entryLine);" +
+                "if(slLine)candleSeries.removePriceLine(slLine);" +
+                "if(tp1Line)candleSeries.removePriceLine(tp1Line);" +
+                "if(tp2Line)candleSeries.removePriceLine(tp2Line);" +
+                "if(tp3Line)candleSeries.removePriceLine(tp3Line);" +
+
+                "entryLine=null;" +
+                "slLine=null;" +
+                "tp1Line=null;" +
+                "tp2Line=null;" +
+                "tp3Line=null;" +
+
                 "}" +
 
-                "function drawEverything(){" +
+                "function createSignalLines(){" +
 
-                "if(!mainCanvas)return;" +
+                "clearPriceLines();" +
 
-                "var ctx=mainCanvas.getContext('2d');" +
-                "var w=mainCanvas.clientWidth;" +
-                "var h=mainCanvas.clientHeight;" +
+                "if(entryPrice>0){" +
 
-                "ctx.clearRect(0,0,w,h);" +
+                "entryLine=candleSeries.createPriceLine({" +
+                "price:entryPrice," +
+                "color:'#FFFFFF'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'ENTRY'" +
+                "});" +
 
-                "if(!currentData||currentData.length===0){" +
-
-                "setChartMessage('NO MARKET DATA');" +
-                "return;" +
                 "}" +
 
-                "var lowerVisible=lowerIndicator!=='NONE';" +
-                "var lowerHeight=lowerVisible?h*0.28:0;" +
-                "var top=28;" +
-                "var bottom=h-lowerHeight-25;" +
-                "var left=8;" +
-                "var right=w-70;" +
+                "if(slPrice>0){" +
 
-                "var visibleData=currentData;" +
-                "var range=priceRange(visibleData);" +
+                "slLine=candleSeries.createPriceLine({" +
+                "price:slPrice," +
+                "color:'#EA3943'," +
+                "lineWidth:2," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'SL'" +
+                "});" +
 
-                "drawGrid(ctx,w,h,top,bottom,left,right,range);" +
-
-                "var count=visibleData.length;" +
-                "var spacing=(right-left)/Math.max(1,count);" +
-                "var bodyWidth=Math.max(2,spacing*0.62);" +
-
-                "for(var i=0;i<count;i++){" +
-
-                "var c=visibleData[i];" +
-                "var x=left+(spacing*i)+(spacing/2);" +
-
-                "var openY=mapPrice(Number(c.open),range,top,bottom);" +
-                "var closeY=mapPrice(Number(c.close),range,top,bottom);" +
-                "var highY=mapPrice(Number(c.high),range,top,bottom);" +
-                "var lowY=mapPrice(Number(c.low),range,top,bottom);" +
-
-                "var up=Number(c.close)>=Number(c.open);" +
-
-                "ctx.strokeStyle=up?'#16C784':'#EA3943';" +
-                "ctx.fillStyle=up?'#16C784':'#EA3943';" +
-                "ctx.lineWidth=1;" +
-
-                "ctx.beginPath();" +
-                "ctx.moveTo(x,highY);" +
-                "ctx.lineTo(x,lowY);" +
-                "ctx.stroke();" +
-
-                "var bodyTop=Math.min(openY,closeY);" +
-                "var bodyHeight=Math.max(1,Math.abs(closeY-openY));" +
-
-                "ctx.fillRect(" +
-                "x-bodyWidth/2," +
-                "bodyTop," +
-                "bodyWidth," +
-                "bodyHeight" +
-                ");" +
                 "}" +
+
+                "if(tp1Price>0){" +
+
+                "tp1Line=candleSeries.createPriceLine({" +
+                "price:tp1Price," +
+                "color:'#16C784'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'TP1'" +
+                "});" +
+
+                "}" +
+
+                "if(tp2Price>0){" +
+
+                "tp2Line=candleSeries.createPriceLine({" +
+                "price:tp2Price," +
+                "color:'#16C784'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'TP2'" +
+                "});" +
+
+                "}" +
+
+                "if(tp3Price>0){" +
+
+                "tp3Line=candleSeries.createPriceLine({" +
+                "price:tp3Price," +
+                "color:'#16C784'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:'TP3'" +
+                "});" +
+
+                "}" +
+
+                "}" +
+
+                "function removeIndicatorSeries(series){" +
+
+                "if(series&&chart){" +
+                "try{chart.removeSeries(series);}catch(e){}" +
+                "}" +
+
+                "}" +
+
+                "function refreshOverlayIndicators(){" +
+
+                "removeIndicatorSeries(ema20Series);" +
+                "removeIndicatorSeries(ema50Series);" +
+                "removeIndicatorSeries(sma200Series);" +
+                "removeIndicatorSeries(bbUpperSeries);" +
+                "removeIndicatorSeries(bbMiddleSeries);" +
+                "removeIndicatorSeries(bbLowerSeries);" +
+
+                "ema20Series=null;" +
+                "ema50Series=null;" +
+                "sma200Series=null;" +
+                "bbUpperSeries=null;" +
+                "bbMiddleSeries=null;" +
+                "bbLowerSeries=null;" +
 
                 "if(ema20Enabled){" +
-                "drawLineSeries(" +
-                "ctx,calculateEMA(currentData,20)," +
-                "range,left,right,top,bottom," +
-                "'#FFD54F',2" +
+
+                "ema20Series=chart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#FFD54F'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
+                "}" +
                 ");" +
+
+                "ema20Series.setData(" +
+                "calculateEMA(currentData,20)" +
+                ");" +
+
                 "}" +
 
                 "if(ema50Enabled){" +
-                "drawLineSeries(" +
-                "ctx,calculateEMA(currentData,50)," +
-                "range,left,right,top,bottom," +
-                "'#42A5F5',2" +
+
+                "ema50Series=chart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#42A5F5'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
+                "}" +
                 ");" +
+
+                "ema50Series.setData(" +
+                "calculateEMA(currentData,50)" +
+                ");" +
+
                 "}" +
 
                 "if(sma200Enabled){" +
-                "drawLineSeries(" +
-                "ctx,calculateSMA(currentData,200)," +
-                "range,left,right,top,bottom," +
-                "'#FFFFFF',2" +
+
+                "sma200Series=chart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#FFFFFF'," +
+                "lineWidth:2," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
+                "}" +
                 ");" +
+
+                "sma200Series.setData(" +
+                "calculateSMA(currentData,200)" +
+                ");" +
+
                 "}" +
 
                 "if(bollingerEnabled){" +
 
                 "var bands=calculateBollinger(currentData,20,2);" +
 
-                "drawLineSeries(ctx,bands.upper,range,left,right,top,bottom,'#90CAF9',1);" +
-                "drawLineSeries(ctx,bands.middle,range,left,right,top,bottom,'#B0BEC5',1);" +
-                "drawLineSeries(ctx,bands.lower,range,left,right,top,bottom,'#90CAF9',1);" +
-
+                "bbUpperSeries=chart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#90CAF9'," +
+                "lineWidth:1," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
                 "}" +
-
-                "for(var s=0;s<signalLines.length;s++){" +
-
-                "var line=signalLines[s];" +
-
-                "var y=mapPrice(line.price,range,top,bottom);" +
-
-                "ctx.strokeStyle=line.color;" +
-                "ctx.lineWidth=1;" +
-
-                "ctx.beginPath();" +
-                "ctx.moveTo(left,y);" +
-                "ctx.lineTo(right,y);" +
-                "ctx.stroke();" +
-
-                "ctx.fillStyle=line.color;" +
-                "ctx.font='10px Arial';" +
-                "ctx.fillText(line.title,right+3,y+3);" +
-                "}" +
-
-                "for(var d=0;d<drawingLines.length;d++){" +
-
-                "var draw=drawingLines[d];" +
-                "var dy=mapPrice(draw.price,range,top,bottom);" +
-
-                "ctx.strokeStyle='#FFFFFF';" +
-                "ctx.lineWidth=1;" +
-                "ctx.setLineDash([5,4]);" +
-
-                "ctx.beginPath();" +
-                "ctx.moveTo(left,dy);" +
-                "ctx.lineTo(right,dy);" +
-                "ctx.stroke();" +
-
-                "ctx.setLineDash([]);" +
-
-                "ctx.fillStyle='#FFFFFF';" +
-                "ctx.font='10px Arial';" +
-                "ctx.fillText('LEVEL',right+3,dy+3);" +
-                "}" +
-
-                "drawLowerIndicator();" +
-
-                "ctx.fillStyle='#8A96A8';" +
-                "ctx.font='10px Arial';" +
-                "ctx.fillText(" +
-                "'CANDLES: '+currentData.length," +
-                "8,15" +
                 ");" +
 
-                "setChartMessage(" +
-                "lowerVisible?" +
-                "lowerIndicator+' • '+currentData.length+' candles' :" +
-                "currentData.length+' candles • chart ready'" +
+                "bbMiddleSeries=chart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#B0BEC5'," +
+                "lineWidth:1," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
+                "}" +
+                ");" +
+
+                "bbLowerSeries=chart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#90CAF9'," +
+                "lineWidth:1," +
+                "priceLineVisible:false," +
+                "lastValueVisible:false" +
+                "}" +
+                ");" +
+
+                "bbUpperSeries.setData(bands.upper);" +
+                "bbMiddleSeries.setData(bands.middle);" +
+                "bbLowerSeries.setData(bands.lower);" +
+
+                "}" +
+
+                "}" +
+
+                "function setupLowerChart(){" +
+
+                "var lower=document.getElementById('lower');" +
+
+                "if(lowerChart){" +
+
+                "try{lowerChart.remove();}catch(e){}" +
+                "lowerChart=null;" +
+                "}" +
+
+                "lowerChart=LightweightCharts.createChart(" +
+                "lower," +
+                "{" +
+                "layout:{" +
+                "background:{type:'solid',color:'#0B0F14'}," +
+                "textColor:'#7F8B9A'" +
+                "}," +
+                "grid:{" +
+                "vertLines:{color:'#18212C'}," +
+                "horzLines:{color:'#18212C'}" +
+                "}," +
+                "rightPriceScale:{" +
+                "borderColor:'#27303B'" +
+                "}," +
+                "timeScale:{" +
+                "borderColor:'#27303B'," +
+                "timeVisible:true," +
+                "secondsVisible:false" +
+                "}," +
+                "handleScale:{" +
+                "mouseWheel:false," +
+                "pinch:true" +
+                "}" +
+                "}" +
                 ");" +
 
                 "}" +
 
                 "function drawLowerIndicator(){" +
 
-                "var canvas=lowerCanvas;" +
-                "var ctx=canvas.getContext('2d');" +
-                "var w=canvas.clientWidth;" +
-                "var h=canvas.clientHeight;" +
-
-                "ctx.clearRect(0,0,w,h);" +
+                "var lower=document.getElementById('lower');" +
 
                 "if(lowerIndicator==='NONE'){" +
-                "canvas.style.display='none';" +
+
+                "lower.style.display='none';" +
+
+                "if(chart){" +
+                "var el=document.getElementById('chart');" +
+                "el.style.bottom='0';" +
+                "}" +
+
+                "if(lowerChart){" +
+                "try{lowerChart.remove();}catch(e){}" +
+                "lowerChart=null;" +
+                "}" +
+
                 "return;" +
                 "}" +
 
-                "canvas.style.display='block';" +
+                "lower.style.display='block';" +
 
-                "var series=[];" +
-                "var series2=[];" +
-                "var histogram=[];" +
-                "var min=Infinity;" +
-                "var max=-Infinity;" +
+                "if(chart){" +
+                "var el=document.getElementById('chart');" +
+                "el.style.bottom='25%';" +
+                "}" +
+
+                "setupLowerChart();" +
 
                 "if(lowerIndicator==='RSI'){" +
-                "series=calculateRSI(currentData,14);" +
-                "min=0;" +
-                "max=100;" +
+
+                "rsiSeries=lowerChart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#AB47BC'," +
+                "lineWidth:2," +
+                "title:'RSI 14'" +
+                "}" +
+                ");" +
+
+                "rsiSeries.setData(" +
+                "calculateRSI(currentData,14)" +
+                ");" +
+
+                "lowerChart.timeScale().fitContent();" +
+
                 "}else if(lowerIndicator==='ATR'){" +
-                "series=calculateATR(currentData,14);" +
+
+                "atrSeries=lowerChart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#FF7043'," +
+                "lineWidth:2," +
+                "title:'ATR 14'" +
+                "}" +
+                ");" +
+
+                "atrSeries.setData(" +
+                "calculateATR(currentData,14)" +
+                ");" +
+
+                "lowerChart.timeScale().fitContent();" +
+
                 "}else if(lowerIndicator==='STOCHASTIC'){" +
-                "series=calculateStochastic(currentData,14);" +
-                "min=0;" +
-                "max=100;" +
+
+                "stochasticSeries=lowerChart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#26C6DA'," +
+                "lineWidth:2," +
+                "title:'STOCHASTIC 14'" +
+                "}" +
+                ");" +
+
+                "stochasticSeries.setData(" +
+                "calculateStochastic(currentData,14)" +
+                ");" +
+
+                "lowerChart.timeScale().fitContent();" +
+
                 "}else if(lowerIndicator==='MACD'){" +
 
                 "var macd=calculateMACD(currentData);" +
-                "series=macd.line;" +
-                "series2=macd.signal;" +
-                "histogram=macd.histogram;" +
+
+                "macdSeries=lowerChart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#42A5F5'," +
+                "lineWidth:2," +
+                "title:'MACD'" +
                 "}" +
-
-                "for(var i=0;i<series.length;i++){" +
-                "min=Math.min(min,series[i].value);" +
-                "max=Math.max(max,series[i].value);" +
-                "}" +
-
-                "for(var j=0;j<series2.length;j++){" +
-                "min=Math.min(min,series2[j].value);" +
-                "max=Math.max(max,series2[j].value);" +
-                "}" +
-
-                "if(!isFinite(min)||!isFinite(max))return;" +
-
-                "if(min===max){" +
-                "min-=1;" +
-                "max+=1;" +
-                "}" +
-
-                "var pad=(max-min)*0.12;" +
-                "min-=pad;" +
-                "max+=pad;" +
-
-                "var left=8;" +
-                "var right=w-8;" +
-                "var top=12;" +
-                "var bottom=h-12;" +
-
-                "ctx.strokeStyle='#18212C';" +
-                "ctx.lineWidth=1;" +
-
-                "for(var g=0;g<4;g++){" +
-
-                "var gy=top+((bottom-top)/3)*g;" +
-
-                "ctx.beginPath();" +
-                "ctx.moveTo(left,gy);" +
-                "ctx.lineTo(right,gy);" +
-                "ctx.stroke();" +
-                "}" +
-
-                "function mapLower(value){" +
-                "return top+((max-value)/(max-min))*(bottom-top);" +
-                "}" +
-
-                "if(lowerIndicator==='MACD'){" +
-
-                "for(var b=0;b<histogram.length;b++){" +
-
-                "var hx=left+" +
-                "((right-left)*histogram[b].index/" +
-                "Math.max(1,currentData.length-1));" +
-
-                "var hy=mapLower(histogram[b].value);" +
-                "var zero=mapLower(0);" +
-
-                "ctx.fillStyle=histogram[b].value>=0?'#16C784':'#EA3943';" +
-
-                "ctx.fillRect(" +
-                "hx-2," +
-                "Math.min(hy,zero)," +
-                "4," +
-                "Math.max(1,Math.abs(zero-hy))" +
                 ");" +
+
+                "macdSeries.setData(macd.line);" +
+
+                "var signal=lowerChart.addSeries(" +
+                "LightweightCharts.LineSeries," +
+                "{" +
+                "color:'#FFCA28'," +
+                "lineWidth:2," +
+                "title:'SIGNAL'" +
+                "}" +
+                ");" +
+
+                "signal.setData(macd.signal);" +
+
+                "lowerChart.timeScale().fitContent();" +
+
                 "}" +
 
                 "}" +
 
-                "function drawLowerLine(items,color,width){" +
+                "function calculateMACD(data){" +
 
-                "if(!items||items.length===0)return;" +
+                "var result=[];" +
+                "var signal=[];" +
 
-                "ctx.strokeStyle=color;" +
-                "ctx.lineWidth=width;" +
-                "ctx.beginPath();" +
+                "var ema12=calculateEMA(data,12);" +
+                "var ema26=calculateEMA(data,26);" +
 
-                "for(var z=0;z<items.length;z++){" +
+                "var map12={};" +
 
-                "var x=left+" +
-                "((right-left)*items[z].index/" +
-                "Math.max(1,currentData.length-1));" +
-
-                "var y=mapLower(items[z].value);" +
-
-                "if(z===0)ctx.moveTo(x,y);" +
-                "else ctx.lineTo(x,y);" +
+                "for(var i=0;i<ema12.length;i++){" +
+                "map12[ema12[i].time]=ema12[i].value;" +
                 "}" +
 
-                "ctx.stroke();" +
+                "for(var j=0;j<ema26.length;j++){" +
+
+                "var t=ema26[j].time;" +
+
+                "if(map12[t]!==undefined){" +
+
+                "result.push({" +
+                "time:t," +
+                "value:map12[t]-ema26[j].value" +
+                "});" +
+
                 "}" +
 
-                "if(lowerIndicator==='RSI'){" +
-                "drawLowerLine(series,'#AB47BC',2);" +
-                "}else if(lowerIndicator==='ATR'){" +
-                "drawLowerLine(series,'#FF7043',2);" +
-                "}else if(lowerIndicator==='STOCHASTIC'){" +
-                "drawLowerLine(series,'#26C6DA',2);" +
-                "}else if(lowerIndicator==='MACD'){" +
-                "drawLowerLine(series,'#42A5F5',2);" +
-                "drawLowerLine(series2,'#FFCA28',2);" +
                 "}" +
 
-                "var label=document.getElementById('indicatorTitle');" +
-                "label.innerText=lowerIndicator==='NONE'?'':lowerIndicator;" +
+                "if(result.length<9){" +
+
+                "return {" +
+                "line:result," +
+                "signal:[]" +
+                "};" +
+
                 "}" +
 
-                "function setChartData(data,symbol,entry,sl,tp1,tp2,tp3,statusText){" +
+                "var sum=0;" +
 
-                "if(!data||data.length===0){" +
+                "for(var k=0;k<9;k++){" +
+                "sum+=result[k].value;" +
+                "}" +
+
+                "var previous=sum/9;" +
+
+                "signal.push({" +
+                "time:result[8].time," +
+                "value:previous" +
+                "});" +
+
+                "var multiplier=2/10;" +
+
+                "for(var n=9;n<result.length;n++){" +
+
+                "previous=" +
+                "(result[n].value-previous)*multiplier+" +
+                "previous;" +
+
+                "signal.push({" +
+                "time:result[n].time," +
+                "value:previous" +
+                "});" +
+
+                "}" +
+
+                "return {" +
+                "line:result," +
+                "signal:signal" +
+                "};" +
+
+                "}" +
+
+                "function setChartData(" +
+                "data,symbol,entry,sl,tp1,tp2,tp3,statusText" +
+                "){" +
+
+                "currentData=cleanData(data);" +
+                "currentSymbol=symbol||'';" +
+
+                "entryPrice=Number(entry)||0;" +
+                "slPrice=Number(sl)||0;" +
+                "tp1Price=Number(tp1)||0;" +
+                "tp2Price=Number(tp2)||0;" +
+                "tp3Price=Number(tp3)||0;" +
+
+                "if(!chart||!candleSeries){" +
+                "setChartMessage('CHART ENGINE NOT READY');" +
+                "return;" +
+                "}" +
+
+                "if(currentData.length===0){" +
                 "setChartMessage('NO MARKET DATA');" +
                 "return;" +
                 "}" +
 
-                "currentData=data;" +
+                "candleSeries.setData(currentData);" +
 
-                "signalLines=[];" +
+                "refreshOverlayIndicators();" +
 
-                "if(entry>0){" +
-                "signalLines.push({price:entry,title:'ENTRY',color:'#FFFFFF'});" +
-                "}" +
+                "createSignalLines();" +
 
-                "if(sl>0){" +
-                "signalLines.push({price:sl,title:'SL',color:'#EA3943'});" +
-                "}" +
+                "drawLowerIndicator();" +
 
-                "if(tp1>0){" +
-                "signalLines.push({price:tp1,title:'TP1',color:'#16C784'});" +
-                "}" +
+                "chart.timeScale().fitContent();" +
 
-                "if(tp2>0){" +
-                "signalLines.push({price:tp2,title:'TP2',color:'#16C784'});" +
-                "}" +
+                "var message=statusText&&statusText.length>0?" +
+                "statusText:" +
+                "currentData.length+' real candles';" +
 
-                "if(tp3>0){" +
-                "signalLines.push({price:tp3,title:'TP3',color:'#16C784'});" +
-                "}" +
-
-                "drawEverything();" +
+                "setChartMessage(" +
+                "currentSymbol+' • '+message" +
+                ");" +
 
                 "}" +
 
@@ -2763,18 +2834,22 @@ public class MainActivity extends AppCompatActivity {
                 "if(name==='SMA200')sma200Enabled=enabled;" +
                 "if(name==='BOLLINGER')bollingerEnabled=enabled;" +
 
-                "drawEverything();" +
+                "refreshOverlayIndicators();" +
 
-                "setChartMessage(name+' '+(enabled?'ON':'OFF'));" +
+                "setChartMessage(" +
+                "name+' '+(enabled?'ON':'OFF')" +
+                ");" +
+
                 "}" +
 
                 "function setLowerIndicator(name){" +
 
                 "lowerIndicator=name;" +
 
-                "drawEverything();" +
+                "drawLowerIndicator();" +
 
-                "setChartMessage(name==='NONE'?" +
+                "setChartMessage(" +
+                "name==='NONE'?" +
                 "'Lower indicators cleared':" +
                 "name+' active'" +
                 ");" +
@@ -2789,33 +2864,35 @@ public class MainActivity extends AppCompatActivity {
                 "bollingerEnabled=false;" +
                 "lowerIndicator='NONE';" +
 
-                "drawEverything();" +
+                "refreshOverlayIndicators();" +
+                "drawLowerIndicator();" +
 
                 "setChartMessage('Indicators cleared');" +
+
                 "}" +
 
                 "function fitChart(){" +
 
-                "drawEverything();" +
-
-                "setChartMessage('Chart fitted');" +
+                "if(chart){" +
+                "chart.timeScale().fitContent();" +
                 "}" +
 
-                "function addDrawingLine(price,title){" +
+                "if(lowerChart){" +
+                "lowerChart.timeScale().fitContent();" +
+                "}" +
 
-                "drawingLines.push({" +
-                "price:price," +
-                "title:title" +
-                "});" +
+                "setChartMessage('Chart fitted');" +
 
-                "drawEverything();" +
                 "}" +
 
                 "function enableHorizontalDrawing(){" +
 
                 "drawingMode=true;" +
 
-                "setChartMessage('DRAW MODE • TAP CHART FOR LEVEL');" +
+                "setChartMessage(" +
+                "'DRAW MODE • TAP PRICE AREA'" +
+                ");" +
+
                 "}" +
 
                 "function disableDrawing(){" +
@@ -2823,43 +2900,74 @@ public class MainActivity extends AppCompatActivity {
                 "drawingMode=false;" +
 
                 "setChartMessage('Drawing mode OFF');" +
+
                 "}" +
 
                 "function clearDrawings(){" +
 
+                "for(var i=0;i<drawingLines.length;i++){" +
+                "if(drawingLines[i].series){" +
+                "try{" +
+                "drawingLines[i].series.removePriceLine(" +
+                "drawingLines[i].line" +
+                ");" +
+                "}catch(e){}" +
+                "}" +
+                "}" +
+
                 "drawingLines=[];" +
 
-                "drawEverything();" +
-
                 "setChartMessage('Drawings cleared');" +
+
+                "}" +
+
+                "function addDrawingLine(price,title){" +
+
+                "if(!candleSeries||price<=0)return;" +
+
+                "var line=candleSeries.createPriceLine({" +
+                "price:price," +
+                "color:'#FFFFFF'," +
+                "lineWidth:1," +
+                "lineStyle:2," +
+                "axisLabelVisible:true," +
+                "title:title||'LEVEL'" +
+                "});" +
+
+                "drawingLines.push({" +
+                "series:candleSeries," +
+                "line:line," +
+                "price:price" +
+                "});" +
+
+                "setChartMessage(" +
+                "'LEVEL '+Number(price).toFixed(5)" +
+                ");" +
+
+                "}" +
+
+                "function addTrendLine(){" +
+
+                "setChartMessage(" +
+                "'Trend-line tool ready • use chart zoom/scroll'" +
+                ");" +
+
                 "}" +
 
                 "function chartClick(event){" +
 
-                "if(!drawingMode||currentData.length===0)return;" +
+                "if(!drawingMode||!chart||!candleSeries)return;" +
 
-                "var rect=mainCanvas.getBoundingClientRect();" +
+                "var rect=document.getElementById('chart')" +
+                ".getBoundingClientRect();" +
 
                 "var y=event.clientY-rect.top;" +
 
-                "var h=mainCanvas.clientHeight;" +
+                "var price=candleSeries.coordinateToPrice(y);" +
 
-                "var top=28;" +
+                "if(price!==null&&isFinite(price)){" +
 
-                "var lowerHeight=" +
-                "(lowerIndicator!=='NONE'?h*0.28:0);" +
-
-                "var bottom=h-lowerHeight-25;" +
-
-                "var range=priceRange(currentData);" +
-
-                "var price=range.high-" +
-                "((y-top)/(bottom-top))" +
-                "*(range.high-range.low);" +
-
-                "if(price>0){" +
-
-                "addDrawingLine(price,'LEVEL');" +
+                "addDrawingLine(Number(price),'LEVEL');" +
 
                 "disableDrawing();" +
 
@@ -2869,20 +2977,35 @@ public class MainActivity extends AppCompatActivity {
 
                 "function init(){" +
 
-                "mainCanvas=document.getElementById('mainCanvas');" +
-                "lowerCanvas=document.getElementById('lowerCanvas');" +
+                "try{" +
 
-                "mainCanvas.addEventListener('click',chartClick);" +
+                "if(typeof LightweightCharts==='undefined'){" +
+                "setChartMessage(" +
+                "'CHART LIBRARY FAILED TO LOAD'" +
+                ");" +
+                "return;" +
+                "}" +
 
-                "window.addEventListener('resize',resizeAll);" +
+                "createChart();" +
 
-                "resizeAll();" +
+                "var chartElement=document.getElementById('chart');" +
 
-                "setChartMessage('CHART READY • WAITING FOR MARKET DATA');" +
+                "chartElement.addEventListener(" +
+                "'click'," +
+                "chartClick" +
+                ");" +
+
+                "}catch(error){" +
+
+                "setChartMessage(" +
+                "'CHART ERROR • '+error.message" +
+                ");" +
 
                 "}" +
 
-                "window.onload=init;" +
+                "}" +
+
+                "window.addEventListener('load',init);" +
 
                 "</script>" +
 
@@ -2911,11 +3034,10 @@ public class MainActivity extends AppCompatActivity {
         if (candles == null ||
                 candles.isEmpty()) {
 
-            chartWebView.evaluateJavascript(
+            runChartJavaScript(
                     "setChartMessage('WAITING FOR MARKET DATA • " +
-                            chartSymbol.replace("'", "") +
-                            "');",
-                    null
+                            escapeJavaScript(chartSymbol) +
+                            "');"
             );
 
             return;
@@ -2927,26 +3049,14 @@ public class MainActivity extends AppCompatActivity {
                     new JSONArray();
 
             /*
-             * IMPORTANT:
-             * Use the REAL timestamp supplied by
-             * Twelve Data through Candle.timestamp.
+             * REAL Twelve Data timestamps.
              *
-             * We are no longer creating synthetic
-             * timestamps here.
+             * No synthetic timestamps.
              */
+            for (Candle candle : candles) {
 
-            for (int i = 0;
-                 i < candles.size();
-                 i++) {
-
-                Candle candle =
-                        candles.get(i);
-
-                /*
-                 * Skip candles that somehow have no
-                 * valid real timestamp.
-                 */
-                if (candle.timestamp <= 0) {
+                if (candle == null ||
+                        candle.timestamp <= 0) {
                     continue;
                 }
 
@@ -2983,9 +3093,10 @@ public class MainActivity extends AppCompatActivity {
 
             if (array.length() == 0) {
 
-                chartWebView.evaluateJavascript(
-                        "setChartMessage('WAITING FOR REAL TIMESTAMPS');",
-                        null
+                runChartJavaScript(
+                        "setChartMessage(" +
+                                "'WAITING FOR REAL MARKET DATA'" +
+                                ");"
                 );
 
                 return;
@@ -3038,29 +3149,13 @@ public class MainActivity extends AppCompatActivity {
             }
 
             String jsData =
-                    array.toString()
-                            .replace(
-                                    "\\",
-                                    "\\\\"
-                            )
-                            .replace(
-                                    "'",
-                                    "\\'"
-                            );
+                    array.toString();
 
             String jsSymbol =
-                    chartSymbol
-                            .replace(
-                                    "'",
-                                    "\\'"
-                            );
+                    escapeJavaScript(chartSymbol);
 
             String jsStatus =
-                    statusText
-                            .replace(
-                                    "'",
-                                    "\\'"
-                            );
+                    escapeJavaScript(statusText);
 
             String javascript =
                     "setChartData(" +
@@ -3088,11 +3183,37 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
 
-            chartWebView.evaluateJavascript(
-                    "setChartMessage('CHART DATA ERROR');",
-                    null
+            runChartJavaScript(
+                    "setChartMessage('CHART DATA ERROR');"
             );
         }
+    }
+
+    private String escapeJavaScript(
+            String value
+    ) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .replace(
+                        "\\",
+                        "\\\\"
+                )
+                .replace(
+                        "'",
+                        "\\'"
+                )
+                .replace(
+                        "\n",
+                        " "
+                )
+                .replace(
+                        "\r",
+                        " "
+                );
     }
 
     private long timeframeSeconds(
@@ -3636,12 +3757,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (chartWebView == null ||
                 !chartReady) {
-
-            Toast.makeText(
-                    this,
-                    "Chart is still loading",
-                    Toast.LENGTH_SHORT
-            ).show();
 
             return;
         }
